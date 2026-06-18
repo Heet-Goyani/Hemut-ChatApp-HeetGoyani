@@ -13,7 +13,7 @@ from app.services.presence_service import get_user_presence
 router = APIRouter()
 
 
-@router.get("/", response_model=list[ChannelOut])
+@router.get("", response_model=list[ChannelOut])
 async def list_channels(
     current_user: User = Depends(get_current_user),
     db: AsyncSession = Depends(get_db),
@@ -23,7 +23,7 @@ async def list_channels(
     return [ChannelOut(**ch) for ch in channels]
 
 
-@router.post("/", response_model=ChannelOut, status_code=status.HTTP_201_CREATED)
+@router.post("", response_model=ChannelOut, status_code=status.HTTP_201_CREATED)
 async def create_channel(
     payload: ChannelCreate,
     current_user: User = Depends(get_current_user),

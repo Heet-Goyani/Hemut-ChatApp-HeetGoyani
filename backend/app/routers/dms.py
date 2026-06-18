@@ -88,11 +88,59 @@ async def send_dm(
     if not other_user:
         raise HTTPException(status_code=404, detail="User not found")
 
+    content = payload.content.strip()
+    msg_type = "text"
+    metadata = {}
+
+    if payload.parent_id:
+        parent_msg = await message_service.get_message_by_id(db, payload.parent_id)
+        if not parent_msg:
+            raise HTTPException(status_code=404, detail="Parent message not found")
+        is_dm_match = (
+            parent_msg.channel_id is None and
+            ((parent_msg.sender_id == current_user.id and parent_msg.recipient_id == user_id) or
+             (parent_msg.sender_id == user_id and parent_msg.recipient_id == current_user.id))
+        )
+        if not is_dm_match:
+            raise HTTPException(status_code=400, detail="Parent message does not belong to this DM thread")
+        if parent_msg.parent_id is not None:
+            raise HTTPException(status_code=400, detail="Cannot reply to a thread reply message")
+
+    # Check for slash command
+    if content.startswith("/shipment "):
+        parts = content.split()
+        if len(parts) >= 2:
+            tracking_id = parts[1].upper()
+            from sqlalchemy import select
+            from app.models.shipment import Shipment
+            ship_result = await db.execute(select(Shipment).where(Shipment.tracking_id == tracking_id))
+            shipment = ship_result.scalar_one_or_none()
+            if shipment:
+                msg_type = "shipment"
+                metadata["shipment"] = {
+                    "id": str(shipment.id),
+                    "tracking_id": shipment.tracking_id,
+                    "po_number": shipment.po_number,
+                    "origin": shipment.origin,
+                    "destination": shipment.destination,
+                    "carrier": shipment.carrier,
+                    "status": shipment.status,
+                    "eta": shipment.eta.isoformat() if shipment.eta else None,
+                    "flagged": shipment.flagged,
+                    "contents": shipment.contents,
+                }
+            else:
+                content = f"⚠️ Error: Shipment '{tracking_id}' not found."
+                msg_type = "system"
+
     msg = await message_service.create_dm_message(
         db,
-        content=payload.content,
+        content=content,
         sender_id=current_user.id,
         recipient_id=user_id,
+        message_type=msg_type,
+        metadata=metadata,
+        parent_id=payload.parent_id,
     )
 
     # Push to recipient's personal WebSocket topic

@@ -12,7 +12,7 @@ from app.schemas.shipment import ShipmentOut
 router = APIRouter()
 
 
-@router.get("/", response_model=list[ShipmentOut])
+@router.get("", response_model=list[ShipmentOut])
 async def list_shipments(
     status: str | None = None,
     flagged: bool | None = None,
