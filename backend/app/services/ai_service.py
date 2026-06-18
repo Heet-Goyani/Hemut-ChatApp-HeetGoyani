@@ -208,31 +208,56 @@ async def summarize_channel(
     conversation_text = _format_messages(messages)
     shipment_context = _format_shipments(shipments)
 
-    # 4. Call Claude API
-    response = client.messages.create(
-        model="claude-sonnet-4-6",
-        max_tokens=1024,
-        system=SYSTEM_PROMPT,
-        messages=[
-            {
-                "role": "user",
-                "content": (
-                    f"Summarize the last {hours} hours of activity in this logistics channel.\n\n"
-                    f"MESSAGES:\n{conversation_text}\n\n"
-                    f"SHIPMENT DATA:\n{shipment_context}\n\n"
-                    "Return only the JSON object, no other text."
-                ),
-            }
-        ],
-    )
+    # 4. Call Claude API or Fallback Mock
+    if (not settings.ANTHROPIC_API_KEY 
+        or settings.ANTHROPIC_API_KEY.startswith("sk-ant-dummy") 
+        or settings.ANTHROPIC_API_KEY == "mock"):
+        
+        # Construct a realistic mock response dynamically based on channel logs
+        topics = ["General Operations"]
+        if tracking_ids:
+            topics.append(f"Shipment status updates ({', '.join(tracking_ids[:3])})")
+        
+        shipment_status_list = []
+        for s in shipments:
+            shipment_status_list.append({
+                "tracking_id": s.tracking_id,
+                "status": s.status or "unknown",
+                "note": f"{s.carrier or 'Carrier'} transport from {s.origin or 'Origin'} to {s.destination or 'Destination'}."
+            })
+            
+        summary = _validate_summary({
+            "tldr": f"Mock Operational Summary: Analyzed {len(messages)} messages over the last {hours} hours. The team is coordinating active routes.",
+            "key_topics": topics,
+            "shipment_status": shipment_status_list,
+            "action_items": [f"Audit delayed containers matching tracking IDs" if tracking_ids else "Monitor channel updates"],
+            "alerts": ["Storm delays reported near Route West" if "storm" in conversation_text.lower() else "No active alerts."]
+        })
+    else:
+        response = client.messages.create(
+            model="claude-3-5-sonnet-latest",
+            max_tokens=1024,
+            system=SYSTEM_PROMPT,
+            messages=[
+                {
+                    "role": "user",
+                    "content": (
+                        f"Summarize the last {hours} hours of activity in this logistics channel.\n\n"
+                        f"MESSAGES:\n{conversation_text}\n\n"
+                        f"SHIPMENT DATA:\n{shipment_context}\n\n"
+                        "Return only the JSON object, no other text."
+                    ),
+                }
+            ],
+        )
 
-    # 5. Parse + validate
-    raw_text = response.content[0].text.strip()
-    # Strip markdown code fences if model wraps it
-    if raw_text.startswith("```"):
-        raw_text = re.sub(r"^```[a-z]*\n?", "", raw_text).rstrip("`").strip()
+        # 5. Parse + validate
+        raw_text = response.content[0].text.strip()
+        # Strip markdown code fences if model wraps it
+        if raw_text.startswith("```"):
+            raw_text = re.sub(r"^```[a-z]*\n?", "", raw_text).rstrip("`").strip()
 
-    summary = _validate_summary(json.loads(raw_text))
+        summary = _validate_summary(json.loads(raw_text))
 
     # 6. Cache in Redis (1h TTL)
     await cache_summary(channel_id, summary)

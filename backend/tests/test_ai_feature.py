@@ -134,7 +134,9 @@ async def test_summarize_channel_mocked(mock_client, client: AsyncClient, auth_h
     # Directly call the service with a test DB session
     from tests.conftest import TestAsyncSession
     async with TestAsyncSession() as db:
-        result = await summarize_channel(db, channel_id, hours=24)
+        # Patch setting to not look like a dummy key so it calls Claude client
+        with patch("app.services.ai_service.settings.ANTHROPIC_API_KEY", "sk-ant-test-key-mock"):
+            result = await summarize_channel(db, channel_id, hours=24)
 
     assert result["tldr"] != ""
     assert isinstance(result["key_topics"], list)
@@ -145,6 +147,41 @@ async def test_summarize_channel_mocked(mock_client, client: AsyncClient, auth_h
     call_args = mock_client.messages.create.call_args
     prompt_content = call_args.kwargs["messages"][0]["content"]
     assert "SHIP-2024-001" in prompt_content
+
+
+@pytest.mark.asyncio
+async def test_summarize_channel_fallback(client: AsyncClient, auth_headers: dict):
+    """
+    summarize_channel() uses the local mock fallback when a dummy key is present.
+    It should NOT call the Anthropic API, but still return a valid validated summary structure.
+    """
+    # Create a channel + post a message to it
+    ch_resp = await client.post(
+        "/api/channels",
+        json={"name": "ai-fallback-channel"},
+        headers=auth_headers,
+    )
+    assert ch_resp.status_code == 201
+    channel_id = uuid.UUID(ch_resp.json()["id"])
+
+    await client.post(
+        f"/api/messages/channel/{channel_id}",
+        json={"content": "SHIP-2024-999 is delayed. The team is looking into it."},
+        headers=auth_headers,
+    )
+
+    # Ensure the dummy key is present
+    with patch("app.services.ai_service.settings.ANTHROPIC_API_KEY", "sk-ant-dummy-test-key"):
+        from tests.conftest import TestAsyncSession
+        async with TestAsyncSession() as db:
+            result = await summarize_channel(db, channel_id, hours=24)
+
+    # Assert it returns a mock summary that follows the expected schema
+    assert result["tldr"] != ""
+    assert "mock" in result["tldr"].lower() or "analyzed" in result["tldr"].lower()
+    assert isinstance(result["key_topics"], list)
+    assert isinstance(result["action_items"], list)
+    assert isinstance(result["shipment_status"], list)
 
 
 @pytest.mark.asyncio
