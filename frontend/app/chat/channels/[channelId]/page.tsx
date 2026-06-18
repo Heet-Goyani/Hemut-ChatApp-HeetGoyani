@@ -39,6 +39,7 @@ export default function ChannelPage({ params }: PageProps) {
 
   // Fetch channel + members
   useEffect(() => {
+    setChannel(null);
     fetchChannel(channelId).then(setChannel).catch(() => {});
     fetchChannelMembers(channelId).then(setMembers).catch(() => {});
     // Reset search
@@ -109,7 +110,7 @@ export default function ChannelPage({ params }: PageProps) {
         <div className="channel-header">
           <span style={{ fontSize: '1.1rem', color: 'var(--text-muted)' }}>#</span>
           <div className="channel-header-title">
-            <span>{channel?.name ?? channelId}</span>
+            <span>{channel?.name ?? '...'}</span>
             {channel?.description && (
               <span style={{ fontWeight: 400, fontSize: '0.875rem', color: 'var(--text-muted)' }}>
                 — {channel.description}
