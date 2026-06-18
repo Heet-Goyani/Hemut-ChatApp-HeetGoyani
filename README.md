@@ -63,43 +63,11 @@ Open http://localhost:3000 to interact with the workspace.
 
 ## 🏗️ Architecture Overview
 
-```mermaid
-graph TD
-    subgraph Frontend["Next.js 14 Frontend (Port 3000)"]
-        AUTH[Auth Page\nXHR Login/Register]
-        SIDEBAR[Sidebar\nChannels + DMs]
-        CHANNEL[Channel View\n✨ Catch Me Up]
-        AUTO[Autocomplete\n/shipment menu]
-        DM[DM View]
-        SHIPS[Shipments Page]
-    end
-
-    subgraph Backend["FastAPI Backend (Port 8000)"]
-        AUTHAPI[/api/auth]
-        CHANAPI[/api/channels]
-        MSGAPI[/api/messages]
-        DMAPI[/api/dms]
-        SHIPAPI[/api/shipments]
-        AIAPI[/api/ai]
-        PRESAPI[/api/presence]
-        WS[ws://localhost:8000/ws/{userId}]
-    end
-
-    subgraph Infra["Infrastructure"]
-        PG[(PostgreSQL 15)]
-        REDIS[(Redis 7)]
-        GEMINI[Google Gemini API\ngemini-3.5-flash]
-        CLAUDE[Anthropic Claude\nclaude-3-5-sonnet]
-    end
-
-    Frontend -->|XHR / fetch| Backend
-    Frontend -->|WebSocket| WS
-    Backend --> PG
-    Backend --> REDIS
-    AIAPI --> GEMINI
-    AIAPI --> CLAUDE
-    WS -->|pub/sub| REDIS
-```
+Hemut-Chat is designed with a modern, decoupled architecture:
+* **Frontend:** A Next.js 14 React client running on port 3000. It manages authentication (via raw XHR form submissions), routes to Channels and DMs, fetches real-time presence/typing indicators, and mounts shipment tracking details and the glassmorphic AI panel.
+* **Backend:** A FastAPI python server running on port 8000. It exposes REST API routers for channels, messages, DMs, shipments, presence, and AI summaries, while running a WebSocket manager (`ws://`) for live event fan-out.
+* **Infrastructure & Database:** A PostgreSQL database serves as the durable store for user profiles, channels, message logs, and shipments. A Redis instance manages real-time pub/sub messaging channels and holds temporary cached AI Catch Me Up summaries.
+* **AI Provider:** The FastAPI backend securely integrates with Google Gemini (`gemini-3.5-flash`) and Anthropic Claude APIs to summarize conversations.
 
 ---
 
@@ -119,43 +87,15 @@ In high-velocity logistics and supply chain operations, channels like `#route-ea
 
 ### 2. How it is Implemented
 
-The AI Catch Me Up pipeline is designed to be completely **asynchronous** and **non-blocking**:
-
-```mermaid
-sequenceDiagram
-    autonumber
-    actor User as Operations Manager
-    participant FE as Next.js Frontend
-    participant BE as FastAPI Backend
-    participant DB as PostgreSQL
-    participant Redis as Redis Cache
-    participant LLM as Google Gemini / Claude
-
-    User->>FE: Enters channel
-    FE->>BE: GET /api/channels/{channel_id} (loads last_read_at)
-    FE->>BE: POST /api/channels/{channel_id}/read (updates read marker)
-    User->>FE: Clicks "Catch me up" & selects timeframe
-    FE->>BE: POST /api/ai/summarize/{channel_id} (optional last_read_at)
-    BE-->>FE: HTTP 202 Accepted (Immediately unblocks UI)
-    
-    rect rgb(30, 41, 59)
-        note right of BE: Background Task Execution
-        BE->>DB: Fetch messages since cutoff (limit 200)
-        alt Zero messages since last_read_at
-            BE-->>FE: Push caught up JSON via WebSocket
-        else Messages found
-            BE->>BE: Extract SHIP-YYYY-NNN tracking IDs
-            BE->>DB: Fetch matching live Shipment records
-            BE->>LLM: Prompt with structured schema requirements
-            LLM-->>BE: Returns validated JSON response
-            BE->>Redis: Cache summary (1-hour TTL)
-            BE->>DB: Persist summary in ai_summaries table
-            BE->>BE: Broadcast result to user WS channel
-            BE-->>FE: WS push: ai_response event
-        end
-    end
-    FE->>User: Render glassmorphic AISummaryPanel
-```
+The AI Catch Me Up pipeline operates completely asynchronously to ensure the user interface never freezes:
+1. **Initial Entrance:** When a user enters a channel, the frontend loads the channel details (including their `last_read_at` timestamp) and immediately fires a background request (`POST /api/channels/{channel_id}/read`) to update their read marker on the database (clearing sidebar badges). The frontend preserves the original `last_read_at` in React state.
+2. **Timeframe Selection:** When the user clicks the Catch Me Up button in the header, the AI panel drawer slides open. Instead of triggering immediately, it calculates the unread count locally and presents the user with cards (Unread Chat, Last 24 Hours, Last 7 Days).
+3. **Triggering Summarization:** The user selects a timeframe. If they select "Unread Chat", the frontend passes the cached `last_read_at` timestamp to the backend (`POST /api/ai/summarize/{channel_id}?last_read_at=...`). The API returns a `202 Accepted` status code immediately, allowing the user to continue chatting.
+4. **Backend Message Collection:** The backend runs the task in the background. It queries the PostgreSQL database for messages within the timeframe (messages newer than `last_read_at` or within the selected hour range). 
+5. **No-Message Fast-Exit:** If "Unread Chat" is chosen and there are 0 new messages in the DB, the task exits early and immediately pushes a "caught up" JSON block to the user's WebSocket, avoiding costly LLM API calls.
+6. **Logistics Context Enrichment:** If messages exist, the backend extracts any mentioned shipment tracking IDs (`SHIP-YYYY-NNN` pattern) using regex, and queries PostgreSQL for matching live carrier, origin, destination, ETA, and delay details.
+7. **LLM Query & Parsing:** The backend formats the message transcript and live shipment data into a structured prompt, calling the Gemini (`gemini-3.5-flash`) or Claude API. The LLM response is validated against the required JSON schema.
+8. **Caching & WebSocket Delivery:** The validated summary is cached in Redis (with a 1-hour TTL) and saved in PostgreSQL for historical reference. The result is pushed directly to the user's open WebSocket connection (`ai_response` event) where the frontend renders it as a structured operational summary.
 
 #### LLM Schema Enforcement:
 The LLM is restricted to a structured JSON output representing the operational dashboard components:
@@ -182,32 +122,17 @@ The LLM is restricted to a structured JSON output representing the operational d
 4. **Enterprise Security (PII Redaction):**
    * Filter out user phone numbers, email addresses, or billing numbers before sending payloads to third-party model APIs to comply with data governance regulations (GDPR/SOC2).
 
----
-
 ## 🔍 Autocomplete Suggestions for `/shipment` Commands
 
-To improve user experience, we implemented a real-time suggestions dropdown that triggers when typing `/shipment` commands in the message input field.
-
-```mermaid
-graph TD
-    INPUT[User Types in input area]
-    IS_SHIP{Starts with /shipment?}
-    LOAD[Load shipments from DB if not cached]
-    EXTRACT[Extract query text after /shipment]
-    FILTER[Filter tracking IDs by query]
-    RENDER[Render glassmorphic dropdown above input]
-    KB_NAV[Arrow keys select / Enter completes]
-    COMPLETE[Replace input with /shipment SHIP-YYYY-NNN]
-
-    INPUT --> IS_SHIP
-    IS_SHIP -->|Yes| LOAD
-    LOAD --> EXTRACT
-    EXTRACT --> FILTER
-    FILTER --> RENDER
-    RENDER --> KB_NAV
-    KB_NAV --> COMPLETE
-    IS_SHIP -->|No| RENDER_NORMAL[Render normal input]
-```
+To improve user experience, we implemented a real-time suggestions dropdown that triggers dynamically as the user types:
+1. **Input Interception:** The `MessageInput` text area listens to changes. If the typed text starts with `/shipment`, it triggers the autocomplete logic.
+2. **Metadata Fetching:** On the first match, the component invokes `fetchShipments()` from the API client, caching all active shipment tracking IDs from PostgreSQL.
+3. **Fuzzy Query Filtering:** Any text entered after `/shipment ` (e.g. `SHIP-2`) is used as a filter. We return all cached tracking IDs that case-insensitively include the query string.
+4. **Glassmorphic Suggestions Dropdown:** If matches exist, we render a floating panel above the text area displaying the matching shipment IDs.
+5. **Keyboard & Click Autocomplete:**
+   - **Keyboard:** The user can press `ArrowUp` or `ArrowDown` to navigate, `Escape` to close the dropdown, and `Enter` to auto-complete.
+   - **Click:** The user can click any item (captured via `onMouseDown` to bypass focus-blur triggers) to select it.
+   - **Replacement:** The text area text is replaced with `/shipment [TRACKING_ID] `, and the text cursor is repositioned at the end of the text.
 
 ---
 
