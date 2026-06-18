@@ -51,6 +51,8 @@ async def create_test_tables():
 
     async with test_engine.begin() as conn:
         await conn.run_sync(Base.metadata.drop_all)
+        # Import models so Base.metadata knows about all tables
+        from app.models import user, channel, message, shipment, membership, ai_summary  # noqa
         await conn.run_sync(Base.metadata.create_all)
     yield
     async with test_engine.begin() as conn:

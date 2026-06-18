@@ -210,7 +210,7 @@ async def summarize_channel(
 
     # 4. Call Gemini, Claude, or Fallback Mock
     if settings.GEMINI_API_KEY and not settings.GEMINI_API_KEY.startswith("dummy") and settings.GEMINI_API_KEY != "mock":
-        url = f"https://generativelanguage.googleapis.com/v1beta/models/gemini-1.5-flash:generateContent?key={settings.GEMINI_API_KEY}"
+        url = f"https://generativelanguage.googleapis.com/v1beta/models/gemini-2.5-flash:generateContent?key={settings.GEMINI_API_KEY}"
         
         prompt = (
             f"{SYSTEM_PROMPT}\n\n"

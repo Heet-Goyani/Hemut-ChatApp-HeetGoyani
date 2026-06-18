@@ -134,9 +134,10 @@ async def test_summarize_channel_mocked(mock_client, client: AsyncClient, auth_h
     # Directly call the service with a test DB session
     from tests.conftest import TestAsyncSession
     async with TestAsyncSession() as db:
-        # Patch setting to not look like a dummy key so it calls Claude client
+        # Patch setting to not look like a dummy key so it calls Claude client and bypasses Gemini
         with patch("app.services.ai_service.settings.ANTHROPIC_API_KEY", "sk-ant-test-key-mock"):
-            result = await summarize_channel(db, channel_id, hours=24)
+            with patch("app.services.ai_service.settings.GEMINI_API_KEY", ""):
+                result = await summarize_channel(db, channel_id, hours=24)
 
     assert result["tldr"] != ""
     assert isinstance(result["key_topics"], list)
@@ -170,11 +171,12 @@ async def test_summarize_channel_fallback(client: AsyncClient, auth_headers: dic
         headers=auth_headers,
     )
 
-    # Ensure the dummy key is present
+    # Ensure the dummy key is present and Gemini key is empty to force fallback path
     with patch("app.services.ai_service.settings.ANTHROPIC_API_KEY", "sk-ant-dummy-test-key"):
-        from tests.conftest import TestAsyncSession
-        async with TestAsyncSession() as db:
-            result = await summarize_channel(db, channel_id, hours=24)
+        with patch("app.services.ai_service.settings.GEMINI_API_KEY", ""):
+            from tests.conftest import TestAsyncSession
+            async with TestAsyncSession() as db:
+                result = await summarize_channel(db, channel_id, hours=24)
 
     # Assert it returns a mock summary that follows the expected schema
     assert result["tldr"] != ""
@@ -253,7 +255,10 @@ async def test_summarize_caches_in_redis(mock_client, client: AsyncClient, auth_
 
     from tests.conftest import TestAsyncSession
     async with TestAsyncSession() as db:
-        await summarize_channel(db, channel_id, hours=24)
+        # Ensure we run local mock fallback to prevent calling real APIs in tests
+        with patch("app.services.ai_service.settings.GEMINI_API_KEY", ""):
+            with patch("app.services.ai_service.settings.ANTHROPIC_API_KEY", ""):
+                await summarize_channel(db, channel_id, hours=24)
 
     # Check Redis cache
     cached = await get_cached_summary(channel_id)
