@@ -12,6 +12,7 @@ GET /api/ai/summary/{channel_id}
 """
 import json
 import uuid
+from datetime import datetime
 
 from fastapi import APIRouter, BackgroundTasks, Depends, HTTPException, status
 from sqlalchemy.ext.asyncio import AsyncSession
@@ -31,6 +32,7 @@ async def _run_summarization(
     channel_id: uuid.UUID,
     requester_id: uuid.UUID,
     hours: int,
+    last_read_at: datetime | None = None,
 ) -> None:
     """
     Runs in background:
@@ -40,7 +42,9 @@ async def _run_summarization(
     """
     try:
         async with AsyncSessionLocal() as db:
-            summary = await ai_service.summarize_channel(db, channel_id, hours)
+            summary = await ai_service.summarize_channel(
+                db, channel_id, hours, last_read_at
+            )
         await on_ai_summary_complete(requester_id, channel_id, summary)
     except json.JSONDecodeError as e:
         # AI service returned malformed JSON — push an error event
@@ -77,6 +81,7 @@ async def trigger_summarization(
     channel_id: uuid.UUID,
     background_tasks: BackgroundTasks,
     hours: int = 24,
+    last_read_at: datetime | None = None,
     current_user: User = Depends(get_current_user),
     db: AsyncSession = Depends(get_db),
 ):
@@ -86,18 +91,22 @@ async def trigger_summarization(
 
     Query params:
       hours (int, default 24): time window for messages to summarize.
+      last_read_at (datetime, optional): cut-off for unread message summary.
     """
     channel = await get_channel_by_id(db, channel_id)
     if not channel:
         raise HTTPException(status_code=404, detail="Channel not found")
 
     # Fire summarization in background — don't block the HTTP response
-    background_tasks.add_task(_run_summarization, channel_id, current_user.id, hours)
+    background_tasks.add_task(
+        _run_summarization, channel_id, current_user.id, hours, last_read_at
+    )
 
     return {
         "message": "Summarization started. Result will be delivered via WebSocket.",
         "channel_id": str(channel_id),
         "hours": hours,
+        "last_read_at": last_read_at.isoformat() if last_read_at else None,
     }
 
 

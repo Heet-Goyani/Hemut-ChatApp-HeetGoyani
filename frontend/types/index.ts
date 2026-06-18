@@ -30,6 +30,7 @@ export interface Channel {
   created_at: string;
   member_count: number;
   is_member: boolean;
+  last_read_at?: string | null;
 }
 
 export interface ChannelMember {

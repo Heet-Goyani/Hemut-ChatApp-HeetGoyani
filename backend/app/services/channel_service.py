@@ -1,4 +1,5 @@
 import uuid
+from datetime import datetime, timezone
 from sqlalchemy import select, func, and_
 from sqlalchemy.ext.asyncio import AsyncSession
 from sqlalchemy.orm import selectinload
@@ -17,9 +18,9 @@ async def get_all_channels(db: AsyncSession, current_user_id: uuid.UUID) -> list
 
     # Fetch memberships for current user in one query
     membership_result = await db.execute(
-        select(Membership.channel_id).where(Membership.user_id == current_user_id)
+        select(Membership.channel_id, Membership.last_read_at).where(Membership.user_id == current_user_id)
     )
-    user_channel_ids = {row[0] for row in membership_result.all()}
+    user_memberships = {row[0]: row[1] for row in membership_result.all()}
 
     # Fetch member counts
     count_result = await db.execute(
@@ -32,7 +33,8 @@ async def get_all_channels(db: AsyncSession, current_user_id: uuid.UUID) -> list
         {
             **{col: getattr(ch, col) for col in ["id", "name", "description", "is_private", "created_by", "created_at"]},
             "member_count": count_map.get(ch.id, 0),
-            "is_member": ch.id in user_channel_ids,
+            "is_member": ch.id in user_memberships,
+            "last_read_at": user_memberships.get(ch.id),
         }
         for ch in channels
     ]
@@ -116,3 +118,19 @@ async def is_member(db: AsyncSession, user_id: uuid.UUID, channel_id: uuid.UUID)
         )
     )
     return result.scalar_one_or_none() is not None
+
+
+async def get_membership(db: AsyncSession, user_id: uuid.UUID, channel_id: uuid.UUID) -> Membership | None:
+    result = await db.execute(
+        select(Membership).where(
+            and_(Membership.user_id == user_id, Membership.channel_id == channel_id)
+        )
+    )
+    return result.scalar_one_or_none()
+
+
+async def update_last_read(db: AsyncSession, user_id: uuid.UUID, channel_id: uuid.UUID) -> None:
+    membership = await get_membership(db, user_id, channel_id)
+    if membership:
+        membership.last_read_at = datetime.now(timezone.utc)
+        await db.commit()

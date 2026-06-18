@@ -1,8 +1,8 @@
 'use client';
 
-import { useState, useRef, useCallback } from 'react';
+import { useState, useRef, useCallback, useMemo } from 'react';
 import { wsClient } from '@/lib/websocket';
-import { uploadFile } from '@/lib/api';
+import { uploadFile, fetchShipments } from '@/lib/api';
 
 interface UploadedFile {
   url: string;
@@ -26,6 +26,12 @@ export default function MessageInput({ channelId, dmUserId, placeholder, onSend 
   const [uploadedFile, setUploadedFile] = useState<UploadedFile | null>(null);
   const [uploading, setUploading] = useState(false);
   const [uploadError, setUploadError] = useState<string | null>(null);
+
+  // Auto-complete shipment suggestions state
+  const [shipments, setShipments] = useState<string[]>([]);
+  const [hasLoadedShipments, setHasLoadedShipments] = useState(false);
+  const [showSuggestions, setShowSuggestions] = useState(false);
+  const [activeSuggestionIndex, setActiveSuggestionIndex] = useState(0);
 
   const typingTimer = useRef<ReturnType<typeof setTimeout> | null>(null);
   const isTyping = useRef(false);
@@ -54,8 +60,59 @@ export default function MessageInput({ channelId, dmUserId, placeholder, onSend 
     }
   }, [channelId, dmUserId]);
 
+  const loadShipments = async () => {
+    if (hasLoadedShipments) return;
+    try {
+      const list = await fetchShipments();
+      setShipments(list.map((s) => s.tracking_id));
+      setHasLoadedShipments(true);
+    } catch {
+      // ignore
+    }
+  };
+
+  const filteredShipments = useMemo(() => {
+    if (!value.startsWith('/shipment')) return [];
+    
+    let query = '';
+    if (value.startsWith('/shipment ')) {
+      query = value.substring(10);
+    }
+    
+    const trimmedQuery = query.trim().toLowerCase();
+    if (!trimmedQuery) {
+      return shipments;
+    }
+    
+    return shipments.filter((tid) => tid.toLowerCase().includes(trimmedQuery));
+  }, [value, shipments]);
+
+  const selectSuggestion = (trackingId: string) => {
+    setValue(`/shipment ${trackingId} `);
+    setShowSuggestions(false);
+    
+    if (textareaRef.current) {
+      textareaRef.current.focus();
+      setTimeout(() => {
+        if (textareaRef.current) {
+          const len = `/shipment ${trackingId} `.length;
+          textareaRef.current.setSelectionRange(len, len);
+        }
+      }, 0);
+    }
+  };
+
   const handleChange = (e: React.ChangeEvent<HTMLTextAreaElement>) => {
-    setValue(e.target.value);
+    const val = e.target.value;
+    setValue(val);
+
+    if (val.startsWith('/shipment')) {
+      loadShipments();
+      setShowSuggestions(true);
+      setActiveSuggestionIndex(0);
+    } else {
+      setShowSuggestions(false);
+    }
 
     // Auto-resize textarea
     const el = textareaRef.current;
@@ -128,6 +185,29 @@ export default function MessageInput({ channelId, dmUserId, placeholder, onSend 
   };
 
   const handleKeyDown = (e: React.KeyboardEvent<HTMLTextAreaElement>) => {
+    if (showSuggestions && filteredShipments.length > 0) {
+      if (e.key === 'ArrowDown') {
+        e.preventDefault();
+        setActiveSuggestionIndex((prev) => (prev + 1) % filteredShipments.length);
+        return;
+      }
+      if (e.key === 'ArrowUp') {
+        e.preventDefault();
+        setActiveSuggestionIndex((prev) => (prev - 1 + filteredShipments.length) % filteredShipments.length);
+        return;
+      }
+      if (e.key === 'Enter') {
+        e.preventDefault();
+        selectSuggestion(filteredShipments[activeSuggestionIndex]);
+        return;
+      }
+      if (e.key === 'Escape') {
+        e.preventDefault();
+        setShowSuggestions(false);
+        return;
+      }
+    }
+
     if (e.key === 'Enter' && !e.shiftKey) {
       e.preventDefault();
       handleSend();
@@ -181,6 +261,62 @@ export default function MessageInput({ channelId, dmUserId, placeholder, onSend 
         </div>
       )}
 
+      {/* Shipment suggestions dropdown */}
+      {showSuggestions && filteredShipments.length > 0 && (
+        <div 
+          className="fade-in" 
+          style={{
+            margin: '0',
+            padding: 'var(--space-2)',
+            maxHeight: '200px',
+            overflowY: 'auto',
+            display: 'flex',
+            flexDirection: 'column',
+            gap: '2px',
+            zIndex: 50,
+            boxShadow: 'var(--shadow-lg)',
+            border: '1px solid var(--border-subtle)',
+            background: 'var(--bg-raised)',
+            borderRadius: 'var(--radius-md)',
+          }}
+        >
+          <div style={{ padding: 'var(--space-2) var(--space-3)', fontSize: '0.75rem', fontWeight: 600, color: 'var(--text-muted)', textTransform: 'uppercase', letterSpacing: '0.05em' }}>
+            Select Shipment ID
+          </div>
+          {filteredShipments.map((tid, idx) => {
+            const isActive = idx === activeSuggestionIndex;
+            return (
+              <button
+                key={tid}
+                type="button"
+                onMouseDown={(e) => {
+                  e.preventDefault();
+                  selectSuggestion(tid);
+                }}
+                style={{
+                  display: 'flex',
+                  alignItems: 'center',
+                  padding: 'var(--space-2) var(--space-3)',
+                  background: isActive ? 'hsla(222, 78%, 52%, 0.1)' : 'transparent',
+                  color: isActive ? 'var(--brand-400)' : 'var(--text-primary)',
+                  border: 'none',
+                  borderRadius: 'var(--radius-sm)',
+                  textAlign: 'left',
+                  cursor: 'pointer',
+                  width: '100%',
+                  fontSize: '0.875rem',
+                  fontWeight: isActive ? 600 : 400,
+                  transition: 'background var(--transition-fast), color var(--transition-fast)',
+                }}
+                onMouseEnter={() => setActiveSuggestionIndex(idx)}
+              >
+                📦 <span style={{ marginLeft: 'var(--space-2)', fontFamily: 'var(--font-mono)' }}>{tid}</span>
+              </button>
+            );
+          })}
+        </div>
+      )}
+
       <div className="message-input-wrapper">
         <button
           type="button"
@@ -215,6 +351,10 @@ export default function MessageInput({ channelId, dmUserId, placeholder, onSend 
           value={value}
           onChange={handleChange}
           onKeyDown={handleKeyDown}
+          onBlur={() => {
+            // Delay closing list slightly to allow onMouseDown event to register
+            setTimeout(() => setShowSuggestions(false), 150);
+          }}
           rows={1}
           disabled={sending}
           id="message-input"

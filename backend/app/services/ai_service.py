@@ -125,20 +125,31 @@ async def cache_summary(channel_id: uuid.UUID, summary: dict) -> None:
 
 # ── DB helpers ─────────────────────────────────────────────────────
 async def fetch_recent_messages(
-    db: AsyncSession, channel_id: uuid.UUID, hours: int
+    db: AsyncSession,
+    channel_id: uuid.UUID,
+    hours: int,
+    last_read_at: datetime | None = None,
 ) -> list[Message]:
-    """Fetch messages from the last N hours with sender eagerly loaded."""
+    """Fetch messages from the last N hours OR since last_read_at with sender eagerly loaded."""
     from sqlalchemy.orm import selectinload
 
-    cutoff = datetime.now(timezone.utc) - timedelta(hours=hours)
+    if last_read_at:
+        if last_read_at.tzinfo is None:
+            last_read_at = last_read_at.replace(tzinfo=timezone.utc)
+        condition = Message.created_at >= last_read_at
+    else:
+        cutoff = datetime.now(timezone.utc) - timedelta(hours=hours)
+        condition = Message.created_at >= cutoff
+
     result = await db.execute(
         select(Message)
         .options(selectinload(Message.sender))
         .where(
             Message.channel_id == channel_id,
-            Message.created_at >= cutoff,
+            condition,
         )
         .order_by(Message.created_at)
+        .limit(200)
     )
     return list(result.scalars().all())
 
@@ -192,13 +203,29 @@ async def summarize_channel(
     db: AsyncSession,
     channel_id: uuid.UUID,
     hours: int = 24,
+    last_read_at: datetime | None = None,
 ) -> dict:
     """
     Full summarization pipeline:
       fetch → extract → call Claude → validate → cache → persist → return
     """
+    if last_read_at:
+        if last_read_at.tzinfo is None:
+            last_read_at = last_read_at.replace(tzinfo=timezone.utc)
+        calculated_hours = int((datetime.now(timezone.utc) - last_read_at).total_seconds() / 3600)
+        hours = max(calculated_hours, 1)
+
     # 1. Fetch messages
-    messages = await fetch_recent_messages(db, channel_id, hours)
+    messages = await fetch_recent_messages(db, channel_id, hours, last_read_at)
+
+    if last_read_at and not messages:
+        return {
+            "tldr": "No new messages to summarize. You are all caught up!",
+            "key_topics": [],
+            "shipment_status": [],
+            "action_items": [],
+            "alerts": []
+        }
 
     # 2. Extract tracking IDs and fetch shipment data
     tracking_ids = _extract_tracking_ids([m.content for m in messages])
@@ -210,7 +237,7 @@ async def summarize_channel(
 
     # 4. Call Gemini, Claude, or Fallback Mock
     if settings.GEMINI_API_KEY and not settings.GEMINI_API_KEY.startswith("dummy") and settings.GEMINI_API_KEY != "mock":
-        url = f"https://generativelanguage.googleapis.com/v1beta/models/gemini-2.5-flash:generateContent?key={settings.GEMINI_API_KEY}"
+        url = f"https://generativelanguage.googleapis.com/v1beta/models/gemini-3.5-flash:generateContent?key={settings.GEMINI_API_KEY}"
         
         prompt = (
             f"{SYSTEM_PROMPT}\n\n"

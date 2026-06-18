@@ -12,6 +12,7 @@ Tests:
 import json
 import uuid
 import pytest
+from datetime import datetime, timezone
 from unittest.mock import AsyncMock, MagicMock, patch
 from httpx import AsyncClient
 
@@ -322,3 +323,76 @@ async def test_get_summary_from_cache(client: AsyncClient, auth_headers: dict):
     data = resp.json()
     assert data["source"] == "cache"
     assert data["summary"]["tldr"] == MOCK_AI_RESPONSE["tldr"]
+
+
+@pytest.mark.asyncio
+async def test_mark_channel_as_read(client: AsyncClient, auth_headers: dict):
+    """POST /api/channels/{channel_id}/read updates user's last_read_at timestamp."""
+    ch_resp = await client.post(
+        "/api/channels",
+        json={"name": "read-mark-test"},
+        headers=auth_headers,
+    )
+    assert ch_resp.status_code == 201
+    channel_id = ch_resp.json()["id"]
+
+    read_resp = await client.post(
+        f"/api/channels/{channel_id}/read",
+        headers=auth_headers,
+    )
+    assert read_resp.status_code == 200
+    assert read_resp.json()["message"] == "Channel marked as read"
+
+
+@pytest.mark.asyncio
+async def test_summarize_unread_channel_empty(client: AsyncClient, auth_headers: dict):
+    """summarize_channel() returns early caught-up status if no new messages exist."""
+    ch_resp = await client.post(
+        "/api/channels",
+        json={"name": "ai-unread-empty-test"},
+        headers=auth_headers,
+    )
+    channel_id = uuid.UUID(ch_resp.json()["id"])
+
+    from tests.conftest import TestAsyncSession
+    async with TestAsyncSession() as db:
+        last_read_at = datetime.now(timezone.utc)
+        result = await summarize_channel(db, channel_id, last_read_at=last_read_at)
+        
+    assert "caught up" in result["tldr"].lower()
+    assert len(result["key_topics"]) == 0
+
+
+@pytest.mark.asyncio
+@patch("app.services.ai_service.client")
+async def test_summarize_unread_channel_with_messages(mock_client, client: AsyncClient, auth_headers: dict):
+    """summarize_channel() retrieves messages after last_read_at and returns summary."""
+    mock_response = MagicMock()
+    mock_response.content = [MagicMock(text=json.dumps(MOCK_AI_RESPONSE))]
+    mock_client.messages.create.return_value = mock_response
+
+    ch_resp = await client.post(
+        "/api/channels",
+        json={"name": "ai-unread-msg-test"},
+        headers=auth_headers,
+    )
+    channel_id = uuid.UUID(ch_resp.json()["id"])
+
+    # Post message
+    await client.post(
+        f"/api/messages/channel/{channel_id}",
+        json={"content": "This is a new unread message"},
+        headers=auth_headers,
+    )
+
+    from tests.conftest import TestAsyncSession
+    async with TestAsyncSession() as db:
+        # Pass a past last_read_at so message is included
+        from datetime import timedelta
+        last_read_at = datetime.now(timezone.utc) - timedelta(minutes=5)
+        # Force Claude mock path
+        with patch("app.services.ai_service.settings.GEMINI_API_KEY", ""):
+            with patch("app.services.ai_service.settings.ANTHROPIC_API_KEY", "sk-ant-mock-key"):
+                result = await summarize_channel(db, channel_id, last_read_at=last_read_at)
+
+    assert result["tldr"] == MOCK_AI_RESPONSE["tldr"]

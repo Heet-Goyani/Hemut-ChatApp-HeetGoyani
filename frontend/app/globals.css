@@ -669,6 +669,33 @@ code, pre {
   font-weight: 600;
 }
 
+.ai-option-card {
+  display: flex;
+  flex-direction: column;
+  align-items: flex-start;
+  text-align: left;
+  padding: var(--space-4);
+  background: var(--bg-overlay);
+  border: 1px solid var(--border-subtle);
+  border-radius: var(--radius-md);
+  height: auto;
+  gap: var(--space-1);
+  cursor: pointer;
+  transition: all var(--transition-fast) ease;
+  width: 100%;
+}
+
+.ai-option-card:hover:not(:disabled) {
+  border-color: var(--brand-400);
+  background: hsla(222, 78%, 52%, 0.05);
+  transform: translateY(-2px);
+}
+
+.ai-option-card:disabled {
+  opacity: 0.5;
+  cursor: not-allowed;
+}
+
 /* ── Shipment Card ────────────────────────────────────────── */
 .shipment-card {
   background: var(--bg-raised);

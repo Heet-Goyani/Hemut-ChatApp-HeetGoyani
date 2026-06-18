@@ -1,7 +1,7 @@
 'use client';
 
-import { useEffect, useRef, useState } from 'react';
-import { fetchChannel, fetchChannelMembers, sendChannelMessage, triggerAISummary, searchMessages } from '@/lib/api';
+import { useEffect, useRef, useState, useMemo } from 'react';
+import { fetchChannel, fetchChannelMembers, sendChannelMessage, triggerAISummary, searchMessages, markChannelAsRead } from '@/lib/api';
 import { useMessages } from '@/hooks/useMessages';
 import { usePresence } from '@/hooks/usePresence';
 import { useSingleWSEvent } from '@/hooks/useWebSocket';
@@ -23,6 +23,8 @@ export default function ChannelPage({ params }: PageProps) {
   const [showAI, setShowAI] = useState(false);
   const [aiLoading, setAiLoading] = useState(false);
   const [aiSummary, setAiSummary] = useState<AISummary | null>(null);
+  const [lastReadAt, setLastReadAt] = useState<string | null>(null);
+  const [aiLoadingText, setAiLoadingText] = useState('Analyzing channel activity…');
   const [searchQuery, setSearchQuery] = useState('');
   const [searchResults, setSearchResults] = useState<Message[]>([]);
   const [searching, setSearching] = useState(false);
@@ -40,7 +42,17 @@ export default function ChannelPage({ params }: PageProps) {
   // Fetch channel + members
   useEffect(() => {
     setChannel(null);
-    fetchChannel(channelId).then(setChannel).catch(() => {});
+    setLastReadAt(null);
+    fetchChannel(channelId)
+      .then((ch) => {
+        setChannel(ch);
+        if (ch.last_read_at) {
+          setLastReadAt(ch.last_read_at);
+        }
+        // Mark as read on the backend
+        markChannelAsRead(channelId).catch(() => {});
+      })
+      .catch(() => {});
     fetchChannelMembers(channelId).then(setMembers).catch(() => {});
     // Reset search
     setSearchQuery('');
@@ -48,6 +60,13 @@ export default function ChannelPage({ params }: PageProps) {
     setSearchResults([]);
     setActiveThread(null);
   }, [channelId]);
+
+  // Calculate unread count since lastReadAt
+  const unreadCount = useMemo(() => {
+    if (!lastReadAt) return 0;
+    const markerDate = new Date(lastReadAt);
+    return messages.filter((m) => new Date(m.created_at) > markerDate).length;
+  }, [messages, lastReadAt]);
 
   // Auto-scroll to bottom on new messages
   useEffect(() => {
@@ -68,14 +87,28 @@ export default function ChannelPage({ params }: PageProps) {
     addMessage(msg);
   };
 
-  const handleCatchMeUp = async () => {
+  const handleCatchMeUp = () => {
     setShowAI(true);
+    setAiLoading(false);
+    setAiSummary(null);
+  };
+
+  const handleTriggerSummary = async (type: 'unread' | 'hours', hoursValue?: number) => {
     setAiLoading(true);
     setAiSummary(null);
-    await triggerAISummary(channelId).catch(() => {
-      setAiLoading(false);
-    });
-    // Result arrives via WebSocket ai_response event
+    
+    if (type === 'unread') {
+      setAiLoadingText('Analyzing unread messages…');
+      await triggerAISummary(channelId, 24, lastReadAt || undefined).catch(() => {
+        setAiLoading(false);
+      });
+    } else {
+      const hrs = hoursValue ?? 24;
+      setAiLoadingText(`Analyzing the last ${hrs === 168 ? '7 days' : '24 hours'} of activity…`);
+      await triggerAISummary(channelId, hrs).catch(() => {
+        setAiLoading(false);
+      });
+    }
   };
 
   const handleSearch = async (query: string) => {
@@ -182,6 +215,9 @@ export default function ChannelPage({ params }: PageProps) {
           <AISummaryPanel
             summary={aiSummary}
             loading={aiLoading}
+            unreadCount={unreadCount}
+            onTriggerSummary={handleTriggerSummary}
+            loadingText={aiLoadingText}
             onClose={() => { setShowAI(false); setAiSummary(null); }}
           />
         )}

@@ -173,36 +173,48 @@ export default function MessageRow({
                 delivered:  'badge-success',
                 pending:    'badge-warning',
               };
+              
+              // Extract any custom message text typed after the command
+              const prefixRegex = /^\/shipment\s+SHIP-\d{4}-\d{3}\s*/i;
+              const customText = message.content.replace(prefixRegex, '').trim();
+
               return (
-                <div className={`shipment-card ${ship.flagged ? 'flagged' : ''}`} style={{
-                  marginTop: 'var(--space-2)',
-                  maxWidth: '500px',
-                  padding: 'var(--space-3) var(--space-4)',
-                  borderLeft: ship.flagged ? '3px solid var(--error)' : '3px solid var(--brand-500)',
-                  gridTemplateColumns: '1fr auto',
-                  gap: 'var(--space-2)',
-                }}>
-                  <div>
-                    <div style={{ display: 'flex', gap: 'var(--space-2)', alignItems: 'center', marginBottom: 2 }}>
-                      <a href={`/chat/shipments/${ship.tracking_id}`} className="shipment-tracking" style={{ fontSize: '0.9375rem', fontWeight: 600 }}>
-                        {ship.tracking_id}
-                      </a>
-                      {ship.flagged && <span className="badge badge-error" style={{ fontSize: '0.625rem', padding: '1px 6px' }}>⚠️ Delayed</span>}
+                <div style={{ display: 'flex', flexDirection: 'column', gap: 'var(--space-2)' }}>
+                  {customText && (
+                    <div className="message-content">
+                      {renderContent(customText)}
                     </div>
-                    <p style={{ fontWeight: 500, fontSize: '0.875rem' }}>
-                      {ship.origin} → {ship.destination}
-                    </p>
-                    <p className="shipment-route" style={{ fontSize: '0.75rem', marginTop: 2 }}>
-                      {ship.carrier} {ship.contents ? `• ${ship.contents}` : ''}
-                    </p>
-                  </div>
-                  <div style={{ display: 'flex', flexDirection: 'column', alignItems: 'flex-end', justifyContent: 'center', gap: '4px' }}>
-                    <span className={`badge ${STATUS_BADGE[ship.status ?? ''] ?? 'badge-info'}`} style={{ fontSize: '0.625rem', padding: '1px 6px' }}>
-                      {(ship.status ?? 'unknown').replace('_', ' ')}
-                    </span>
-                    {ship.po_number && (
-                      <span style={{ fontSize: '0.6875rem', color: 'var(--text-muted)' }}>PO: {ship.po_number}</span>
-                    )}
+                  )}
+                  <div className={`shipment-card ${ship.flagged ? 'flagged' : ''}`} style={{
+                    marginTop: customText ? '0' : 'var(--space-2)',
+                    maxWidth: '500px',
+                    padding: 'var(--space-3) var(--space-4)',
+                    borderLeft: ship.flagged ? '3px solid var(--error)' : '3px solid var(--brand-500)',
+                    gridTemplateColumns: '1fr auto',
+                    gap: 'var(--space-2)',
+                  }}>
+                    <div>
+                      <div style={{ display: 'flex', gap: 'var(--space-2)', alignItems: 'center', marginBottom: 2 }}>
+                        <a href={`/chat/shipments/${ship.tracking_id}`} className="shipment-tracking" style={{ fontSize: '0.9375rem', fontWeight: 600 }}>
+                          {ship.tracking_id}
+                        </a>
+                        {ship.flagged && <span className="badge badge-error" style={{ fontSize: '0.625rem', padding: '1px 6px' }}>⚠️ Delayed</span>}
+                      </div>
+                      <p style={{ fontWeight: 500, fontSize: '0.875rem' }}>
+                        {ship.origin} → {ship.destination}
+                      </p>
+                      <p className="shipment-route" style={{ fontSize: '0.75rem', marginTop: 2 }}>
+                        {ship.carrier} {ship.contents ? `• ${ship.contents}` : ''}
+                      </p>
+                    </div>
+                    <div style={{ display: 'flex', flexDirection: 'column', alignItems: 'flex-end', justifyContent: 'center', gap: '4px' }}>
+                      <span className={`badge ${STATUS_BADGE[ship.status ?? ''] ?? 'badge-info'}`} style={{ fontSize: '0.625rem', padding: '1px 6px' }}>
+                        {(ship.status ?? 'unknown').replace('_', ' ')}
+                      </span>
+                      {ship.po_number && (
+                        <span style={{ fontSize: '0.6875rem', color: 'var(--text-muted)' }}>PO: {ship.po_number}</span>
+                      )}
+                    </div>
                   </div>
                 </div>
               );

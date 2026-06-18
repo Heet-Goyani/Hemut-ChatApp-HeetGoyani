@@ -6,17 +6,25 @@ interface AISummaryPanelProps {
   summary: AISummary | null;
   loading?: boolean;
   onClose?: () => void;
+  unreadCount: number;
+  onTriggerSummary: (type: 'unread' | 'hours', hours?: number) => void;
+  loadingText?: string;
 }
 
-export default function AISummaryPanel({ summary, loading, onClose }: AISummaryPanelProps) {
-  if (!loading && !summary) return null;
-
+export default function AISummaryPanel({
+  summary,
+  loading,
+  onClose,
+  unreadCount,
+  onTriggerSummary,
+  loadingText = 'Analyzing channel activity…'
+}: AISummaryPanelProps) {
   return (
     <div className="ai-panel fade-in">
       {/* Header */}
       <div className="ai-panel-header">
         <span style={{ fontSize: '1.25rem' }}>✨</span>
-        <span className="ai-panel-title">AI Summary</span>
+        <span className="ai-panel-title">AI Catch Me Up</span>
         {onClose && (
           <button
             className="btn btn-ghost btn-sm ml-auto"
@@ -28,11 +36,64 @@ export default function AISummaryPanel({ summary, loading, onClose }: AISummaryP
         )}
       </div>
 
+      {/* Options Selection State */}
+      {!loading && !summary && (
+        <div style={{ display: 'flex', flexDirection: 'column', gap: 'var(--space-4)', marginBottom: 'var(--space-2)' }}>
+          <p style={{ fontSize: '0.875rem', color: 'var(--text-secondary)' }}>
+            Choose the time range for the AI summary:
+          </p>
+          
+          <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(180px, 1fr))', gap: 'var(--space-3)' }}>
+            {/* Option 1: Unread Messages */}
+            <button
+              onClick={() => onTriggerSummary('unread')}
+              className="ai-option-card"
+              disabled={unreadCount === 0}
+            >
+              <span style={{ fontWeight: 600, fontSize: '0.9375rem', color: 'var(--brand-400)' }}>
+                📥 Unread Chat
+              </span>
+              <span style={{ fontSize: '0.75rem', color: 'var(--text-muted)' }}>
+                {unreadCount > 0
+                  ? `Summarize ${unreadCount} new message${unreadCount === 1 ? '' : 's'}`
+                  : 'No unread messages'}
+              </span>
+            </button>
+
+            {/* Option 2: Last 24 Hours */}
+            <button
+              onClick={() => onTriggerSummary('hours', 24)}
+              className="ai-option-card"
+            >
+              <span style={{ fontWeight: 600, fontSize: '0.9375rem', color: 'var(--brand-400)' }}>
+                ⏰ Last 24 Hours
+              </span>
+              <span style={{ fontSize: '0.75rem', color: 'var(--text-muted)' }}>
+                Summarize all activity from the past day
+              </span>
+            </button>
+
+            {/* Option 3: Last 7 Days */}
+            <button
+              onClick={() => onTriggerSummary('hours', 168)}
+              className="ai-option-card"
+            >
+              <span style={{ fontWeight: 600, fontSize: '0.9375rem', color: 'var(--brand-400)' }}>
+                🗓️ Last 7 Days
+              </span>
+              <span style={{ fontSize: '0.75rem', color: 'var(--text-muted)' }}>
+                Summarize discussions from the past week
+              </span>
+            </button>
+          </div>
+        </div>
+      )}
+
       {/* Loading state */}
       {loading && !summary && (
         <div style={{ display: 'flex', alignItems: 'center', gap: 'var(--space-3)', padding: 'var(--space-4) 0', color: 'var(--text-muted)' }}>
           <span className="spinner" />
-          <span>Analyzing the last 24 hours of activity…</span>
+          <span>{loadingText}</span>
         </div>
       )}
 

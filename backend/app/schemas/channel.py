@@ -26,6 +26,7 @@ class ChannelOut(BaseModel):
     created_at: datetime
     member_count: int = 0
     is_member: bool = False
+    last_read_at: datetime | None = None
 
     model_config = {"from_attributes": True}
 

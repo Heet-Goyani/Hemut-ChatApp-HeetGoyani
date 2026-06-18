@@ -306,9 +306,17 @@ export async function fetchUserPresence(userId: string): Promise<{ status: Prese
 
 // ── AI ────────────────────────────────────────────────────────────
 
-export async function triggerAISummary(channelId: string, hours = 24): Promise<void> {
+export async function triggerAISummary(
+  channelId: string,
+  hours = 24,
+  lastReadAt?: string
+): Promise<void> {
+  let url = `/api/ai/summarize/${channelId}?hours=${hours}`;
+  if (lastReadAt) {
+    url += `&last_read_at=${encodeURIComponent(lastReadAt)}`;
+  }
   return apiFetch<void>(
-    `/api/ai/summarize/${channelId}?hours=${hours}`,
+    url,
     { method: 'POST' },
     getToken() ?? undefined
   );
@@ -318,6 +326,14 @@ export async function fetchAISummary(channelId: string): Promise<AISummaryRespon
   return apiFetch<AISummaryResponse>(
     `/api/ai/summary/${channelId}`,
     {},
+    getToken() ?? undefined
+  );
+}
+
+export async function markChannelAsRead(channelId: string): Promise<void> {
+  return apiFetch<void>(
+    `/api/channels/${channelId}/read`,
+    { method: 'POST' },
     getToken() ?? undefined
   );
 }

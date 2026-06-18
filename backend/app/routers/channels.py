@@ -63,7 +63,9 @@ async def get_channel(
         raise HTTPException(status_code=404, detail="Channel not found")
 
     members = await channel_service.get_channel_members(db, channel_id)
-    is_member = await channel_service.is_member(db, current_user.id, channel_id)
+    membership = await channel_service.get_membership(db, current_user.id, channel_id)
+    is_member = membership is not None
+    last_read_at = membership.last_read_at if membership else None
 
     return ChannelOut(
         id=channel.id,
@@ -74,7 +76,26 @@ async def get_channel(
         created_at=channel.created_at,
         member_count=len(members),
         is_member=is_member,
+        last_read_at=last_read_at,
     )
+
+
+@router.post("/{channel_id}/read", response_model=dict)
+async def mark_channel_as_read(
+    channel_id: uuid.UUID,
+    current_user: User = Depends(get_current_user),
+    db: AsyncSession = Depends(get_db),
+):
+    channel = await channel_service.get_channel_by_id(db, channel_id)
+    if not channel:
+        raise HTTPException(status_code=404, detail="Channel not found")
+
+    # Only members can mark a channel as read
+    if not await channel_service.is_member(db, current_user.id, channel_id):
+        raise HTTPException(status_code=403, detail="You are not a member of this channel")
+
+    await channel_service.update_last_read(db, current_user.id, channel_id)
+    return {"message": "Channel marked as read"}
 
 
 @router.post("/{channel_id}/join", response_model=dict)
