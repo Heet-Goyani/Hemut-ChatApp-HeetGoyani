@@ -1080,3 +1080,93 @@ code, pre {
   border-top: 1px solid var(--border-subtle);
   background: var(--bg-surface);
 }
+
+/* ── File Upload & Attachments ────────────────────────────── */
+.upload-preview-card {
+  display: flex;
+  align-items: center;
+  gap: var(--space-3);
+  background: var(--bg-surface);
+  border: 1px solid var(--border-subtle);
+  padding: var(--space-2) var(--space-3);
+  border-radius: var(--radius-md);
+  font-size: 0.8125rem;
+  width: fit-content;
+  box-shadow: var(--shadow-sm);
+  animation: slide-up 0.2s ease;
+  transition: border-color var(--transition-fast), transform var(--transition-fast);
+}
+
+.upload-preview-card:hover {
+  border-color: var(--border-muted);
+}
+
+.upload-preview-card.uploading {
+  color: var(--text-muted);
+  font-style: italic;
+}
+
+.upload-preview-remove {
+  background: transparent;
+  border: none;
+  color: var(--text-muted);
+  cursor: pointer;
+  font-size: 0.875rem;
+  margin-left: var(--space-2);
+  padding: 2px 6px;
+  border-radius: var(--radius-sm);
+  transition: color var(--transition-fast), background var(--transition-fast);
+}
+
+.upload-preview-remove:hover {
+  color: var(--text-primary);
+  background: var(--bg-hover);
+}
+
+.upload-error-banner {
+  display: flex;
+  align-items: center;
+  background: hsla(0, 72%, 56%, 0.1);
+  color: var(--error);
+  border: 1px solid hsla(0, 72%, 56%, 0.2);
+  padding: var(--space-2) var(--space-3);
+  border-radius: var(--radius-md);
+  font-size: 0.8125rem;
+  animation: slide-up 0.2s ease;
+}
+
+.upload-error-close {
+  background: transparent;
+  border: none;
+  color: inherit;
+  cursor: pointer;
+  font-size: 0.875rem;
+  padding: 0;
+}
+
+.file-attachment-card {
+  display: inline-flex;
+  align-items: center;
+  gap: var(--space-3);
+  padding: var(--space-3) var(--space-4);
+  border-radius: var(--radius-lg);
+  background: var(--bg-surface);
+  border: 1px solid var(--border-subtle);
+  text-decoration: none;
+  color: var(--text-primary);
+  font-size: 0.875rem;
+  max-width: 350px;
+  box-shadow: var(--shadow-sm);
+  transition: all var(--transition-normal);
+}
+
+.file-attachment-card:hover {
+  border-color: var(--brand-500);
+  transform: translateY(-1px);
+  box-shadow: var(--shadow-md);
+}
+
+@keyframes slide-up {
+  from { transform: translateY(4px); opacity: 0; }
+  to { transform: translateY(0); opacity: 1; }
+}

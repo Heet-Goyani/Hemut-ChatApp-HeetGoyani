@@ -189,6 +189,36 @@ export async function fetchMessage(messageId: string): Promise<Message> {
   );
 }
 
+export async function uploadFile(
+  file: File
+): Promise<{ url: string; name: string; type: string; size: number }> {
+  const formData = new FormData();
+  formData.append('file', file);
+
+  const token = getToken();
+  const headers: Record<string, string> = {};
+  if (token) {
+    headers['Authorization'] = `Bearer ${token}`;
+  }
+
+  const res = await fetch(`${BASE_URL}/api/messages/upload`, {
+    method: 'POST',
+    headers,
+    body: formData,
+  });
+
+  if (!res.ok) {
+    let detail = `HTTP ${res.status}`;
+    try {
+      const body = await res.json();
+      detail = body?.detail ?? detail;
+    } catch { /* ignore */ }
+    throw new ApiError(res.status, detail);
+  }
+
+  return res.json();
+}
+
 // ── DMs ───────────────────────────────────────────────────────────
 
 export async function fetchDMConversations(): Promise<DMConversation[]> {
@@ -213,10 +243,19 @@ export async function fetchDMHistory(
   );
 }
 
-export async function sendDM(userId: string, content: string, parentId?: string): Promise<Message> {
+export async function sendDM(
+  userId: string,
+  content: string,
+  message_type = 'text',
+  metadata: Record<string, unknown> = {},
+  parentId?: string
+): Promise<Message> {
   return apiFetch<Message>(
     `/api/dms/${userId}`,
-    { method: 'POST', body: JSON.stringify({ content, message_type: 'text', parent_id: parentId }) },
+    {
+      method: 'POST',
+      body: JSON.stringify({ content, message_type, metadata, parent_id: parentId }),
+    },
     getToken() ?? undefined
   );
 }

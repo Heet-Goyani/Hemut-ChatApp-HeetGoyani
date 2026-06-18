@@ -90,7 +90,7 @@ async def send_dm(
 
     content = payload.content.strip()
     msg_type = "text"
-    metadata = {}
+    metadata = payload.metadata or {}
 
     if payload.parent_id:
         parent_msg = await message_service.get_message_by_id(db, payload.parent_id)

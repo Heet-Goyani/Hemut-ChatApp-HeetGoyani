@@ -56,8 +56,8 @@ export default function DMPage({ params }: PageProps) {
     bottomRef.current?.scrollIntoView({ behavior: 'smooth' });
   }, [messages.length]);
 
-  const handleSend = async (content: string) => {
-    const msg = await sendDM(userId, content);
+  const handleSend = async (content: string, metadata?: Record<string, any>) => {
+    const msg = await sendDM(userId, content, 'text', metadata);
     addMessage(msg);
     emitDMSent(userId);
   };

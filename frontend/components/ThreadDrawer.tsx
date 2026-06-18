@@ -4,6 +4,7 @@ import { useEffect, useRef, useState } from 'react';
 import { fetchMessageReplies, getUserId, sendChannelMessage, sendDM } from '@/lib/api';
 import { useSingleWSEvent } from '@/hooks/useWebSocket';
 import MessageRow from './MessageRow';
+import MessageInput from './MessageInput';
 import type { Message, WSNewMessageEvent, WSMessageEditedEvent, WSMessageDeletedEvent } from '@/types';
 
 interface ThreadDrawerProps {
@@ -25,8 +26,6 @@ export default function ThreadDrawer({
 }: ThreadDrawerProps) {
   const [replies, setReplies] = useState<Message[]>([]);
   const [loading, setLoading] = useState(false);
-  const [inputValue, setInputValue] = useState('');
-  const [sending, setSending] = useState(false);
   const repliesBottomRef = useRef<HTMLDivElement>(null);
   const currentUserId = getUserId();
 
@@ -76,31 +75,19 @@ export default function ThreadDrawer({
     }
   });
 
-  const handleSend = async (e: React.FormEvent) => {
-    e.preventDefault();
-    const content = inputValue.trim();
-    if (!content || sending) return;
-
-    setSending(true);
-    setInputValue('');
-    try {
-      let sentMsg: Message;
-      if (channelId) {
-        sentMsg = await sendChannelMessage(channelId, content, 'text', {}, parentMessage.id);
-      } else if (dmUserId) {
-        sentMsg = await sendDM(dmUserId, content, parentMessage.id);
-      } else {
-        throw new Error('Missing channelId or dmUserId context');
-      }
-      setReplies((prev) => {
-        if (prev.find((r) => r.id === sentMsg.id)) return prev;
-        return [...prev, sentMsg];
-      });
-    } catch {
-      // rollback or handle error
-    } finally {
-      setSending(false);
+  const handleSendReply = async (content: string, metadata?: Record<string, any>) => {
+    let sentMsg: Message;
+    if (channelId) {
+      sentMsg = await sendChannelMessage(channelId, content, 'text', metadata, parentMessage.id);
+    } else if (dmUserId) {
+      sentMsg = await sendDM(dmUserId, content, 'text', metadata, parentMessage.id);
+    } else {
+      throw new Error('Missing channelId or dmUserId context');
     }
+    setReplies((prev) => {
+      if (prev.find((r) => r.id === sentMsg.id)) return prev;
+      return [...prev, sentMsg];
+    });
   };
 
   const parentName = parentMessage.sender?.display_name ?? parentMessage.sender?.username ?? 'Unknown';
@@ -151,27 +138,14 @@ export default function ThreadDrawer({
       </div>
 
       {/* Input */}
-      <form onSubmit={handleSend} className="thread-drawer-input-container">
-        <div className="message-input-wrapper">
-          <input
-            type="text"
-            className="input"
-            value={inputValue}
-            onChange={(e) => setInputValue(e.target.value)}
-            placeholder={`Reply to ${parentName}…`}
-            disabled={sending}
-            style={{ fontSize: '0.875rem', height: '36px' }}
-          />
-          <button
-            type="submit"
-            className="btn btn-primary btn-sm"
-            disabled={!inputValue.trim() || sending}
-            style={{ padding: '6px 12px' }}
-          >
-            {sending ? <span className="spinner" style={{ width: 14, height: 14 }} /> : 'Send'}
-          </button>
-        </div>
-      </form>
+      <div className="thread-drawer-input-container" style={{ padding: 'var(--space-3)', borderTop: '1px solid var(--border-subtle)' }}>
+        <MessageInput
+          channelId={channelId}
+          dmUserId={dmUserId}
+          placeholder={`Reply to ${parentName}…`}
+          onSend={handleSendReply}
+        />
+      </div>
     </div>
   );
 }

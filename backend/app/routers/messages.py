@@ -1,9 +1,10 @@
 import uuid
 from datetime import datetime
 from typing import Optional
+import os
 
 import httpx
-from fastapi import APIRouter, Depends, HTTPException, BackgroundTasks, status
+from fastapi import APIRouter, Depends, HTTPException, BackgroundTasks, status, UploadFile, File
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from app.config import settings
@@ -22,6 +23,45 @@ from app.websocket.handlers import (
 )
 
 router = APIRouter()
+
+
+@router.post("/upload", status_code=status.HTTP_201_CREATED)
+async def upload_file(
+    file: UploadFile = File(...),
+    current_user: User = Depends(get_current_user),
+):
+    """
+    Upload a file. Saves locally in backend/uploads/ and returns file info.
+    Max size: 10MB
+    """
+    MAX_SIZE = 10 * 1024 * 1024  # 10MB
+    
+    # Read file content to check size
+    contents = await file.read()
+    if len(contents) > MAX_SIZE:
+        raise HTTPException(status_code=413, detail="File too large (Max 10MB)")
+        
+    # Reset read pointer
+    await file.seek(0)
+    
+    # Sanitise name and prepend UUID
+    sanitized_name = "".join([c for c in file.filename if c.isalnum() or c in "._- "]).strip()
+    if not sanitized_name:
+        sanitized_name = "upload"
+    unique_filename = f"{uuid.uuid4()}-{sanitized_name}"
+    
+    os.makedirs("uploads", exist_ok=True)
+    file_path = os.path.join("uploads", unique_filename)
+    
+    with open(file_path, "wb") as f:
+        f.write(contents)
+        
+    return {
+        "url": f"/static/uploads/{unique_filename}",
+        "name": file.filename,
+        "type": file.content_type,
+        "size": len(contents),
+    }
 
 
 def _serialize_message(msg) -> MessageOut:

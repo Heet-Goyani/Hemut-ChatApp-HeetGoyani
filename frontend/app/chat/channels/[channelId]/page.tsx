@@ -62,8 +62,8 @@ export default function ChannelPage({ params }: PageProps) {
     setShowAI(true);
   });
 
-  const handleSend = async (content: string) => {
-    const msg = await sendChannelMessage(channelId, content);
+  const handleSend = async (content: string, metadata?: Record<string, any>) => {
+    const msg = await sendChannelMessage(channelId, content, 'text', metadata);
     addMessage(msg);
   };
 

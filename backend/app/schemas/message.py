@@ -24,7 +24,7 @@ class MessageOut(BaseModel):
     parent_id: uuid.UUID | None
     reply_count: int = 0
     message_type: str
-    metadata: dict = Field(default={}, alias="metadata_")
+    metadata: dict = Field(default={}, validation_alias="metadata_")
     is_edited: bool
     created_at: datetime
     updated_at: datetime

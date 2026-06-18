@@ -217,6 +217,80 @@ export default function MessageRow({
             </div>
           )}
 
+          {message.metadata?.attachment && (
+            <div style={{ marginTop: 'var(--space-2)' }}>
+              {message.metadata.attachment.type?.startsWith('image/') ? (
+                <a href={message.metadata.attachment.url.startsWith('http') ? message.metadata.attachment.url : `${process.env.NEXT_PUBLIC_API_URL ?? 'http://localhost:8000'}${message.metadata.attachment.url}`} target="_blank" rel="noopener noreferrer">
+                  <img
+                    src={message.metadata.attachment.url.startsWith('http') ? message.metadata.attachment.url : `${process.env.NEXT_PUBLIC_API_URL ?? 'http://localhost:8000'}${message.metadata.attachment.url}`}
+                    alt={message.metadata.attachment.name}
+                    style={{
+                      maxWidth: '100%',
+                      maxHeight: '300px',
+                      borderRadius: 'var(--radius-lg)',
+                      border: '1px solid var(--border-subtle)',
+                      boxShadow: 'var(--shadow-sm)',
+                      cursor: 'zoom-in',
+                      display: 'block',
+                      marginTop: '4px',
+                      transition: 'transform 0.2s ease-in-out',
+                    }}
+                    onMouseEnter={(e) => { e.currentTarget.style.transform = 'scale(1.01)'; }}
+                    onMouseLeave={(e) => { e.currentTarget.style.transform = 'scale(1)'; }}
+                  />
+                </a>
+              ) : (
+                <a
+                  href={message.metadata.attachment.url.startsWith('http') ? message.metadata.attachment.url : `${process.env.NEXT_PUBLIC_API_URL ?? 'http://localhost:8000'}${message.metadata.attachment.url}`}
+                  target="_blank"
+                  rel="noopener noreferrer"
+                  download={message.metadata.attachment.name}
+                  style={{
+                    display: 'inline-flex',
+                    alignItems: 'center',
+                    gap: 'var(--space-3)',
+                    padding: 'var(--space-3) var(--space-4)',
+                    borderRadius: 'var(--radius-lg)',
+                    background: 'var(--bg-card)',
+                    border: '1px solid var(--border-subtle)',
+                    textDecoration: 'none',
+                    color: 'var(--text-normal)',
+                    fontSize: '0.875rem',
+                    maxWidth: '350px',
+                    boxShadow: 'var(--shadow-sm)',
+                    transition: 'all 0.2s ease',
+                  }}
+                  onMouseEnter={(e) => {
+                    e.currentTarget.style.borderColor = 'var(--brand-500)';
+                    e.currentTarget.style.transform = 'translateY(-1px)';
+                    e.currentTarget.style.boxShadow = 'var(--shadow-md)';
+                  }}
+                  onMouseLeave={(e) => {
+                    e.currentTarget.style.borderColor = 'var(--border-subtle)';
+                    e.currentTarget.style.transform = 'none';
+                    e.currentTarget.style.boxShadow = 'var(--shadow-sm)';
+                  }}
+                >
+                  <span style={{ fontSize: '1.5rem', flexShrink: 0 }}>📄</span>
+                  <div style={{ display: 'flex', flexDirection: 'column', overflow: 'hidden', flex: 1 }}>
+                    <span style={{
+                      fontWeight: 500,
+                      textOverflow: 'ellipsis',
+                      overflow: 'hidden',
+                      whiteSpace: 'nowrap',
+                    }}>
+                      {message.metadata.attachment.name}
+                    </span>
+                    <span style={{ fontSize: '0.75rem', color: 'var(--text-muted)' }}>
+                      {(message.metadata.attachment.size / 1024).toFixed(1)} KB • Click to download
+                    </span>
+                  </div>
+                  <span style={{ fontSize: '1.1rem', color: 'var(--text-muted)' }}>⬇️</span>
+                </a>
+              )}
+            </div>
+          )}
+
           {/* Thread replies link */}
           {onReplyInThread && message.reply_count !== undefined && message.reply_count > 0 ? (
             <button

@@ -241,3 +241,45 @@ async def test_thread_validation_errors(client: AsyncClient, auth_headers: dict)
     assert nested_reply_resp.status_code == 400
     assert "Cannot reply to a thread reply message" in nested_reply_resp.json()["detail"]
 
+
+@pytest.mark.asyncio
+async def test_upload_file(client: AsyncClient, auth_headers: dict):
+    """POST /api/messages/upload -> upload file successfully and check properties."""
+    import os
+    
+    # 1. Test valid upload
+    files = {"file": ("test.txt", b"hello world file upload", "text/plain")}
+    resp = await client.post(
+        "/api/messages/upload",
+        files=files,
+        headers=auth_headers,
+    )
+    assert resp.status_code == 201
+    data = resp.json()
+    assert data["name"] == "test.txt"
+    assert data["type"] == "text/plain"
+    assert data["size"] == len(b"hello world file upload")
+    assert "/static/uploads/" in data["url"]
+
+    # Verify file is created in directory
+    filename = data["url"].rsplit("/", 1)[1]
+    assert os.path.exists(os.path.join("uploads", filename))
+
+    # Clean up the created file
+    try:
+        os.remove(os.path.join("uploads", filename))
+    except Exception:
+        pass
+
+    # 2. Test file too large (> 10MB)
+    too_large_content = b"a" * (10 * 1024 * 1024 + 1)
+    files_large = {"file": ("large.txt", too_large_content, "text/plain")}
+    resp_large = await client.post(
+        "/api/messages/upload",
+        files=files_large,
+        headers=auth_headers,
+    )
+    assert resp_large.status_code == 413
+    assert "file too large" in resp_large.json()["detail"].lower()
+
+

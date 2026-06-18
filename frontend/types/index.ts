@@ -43,6 +43,13 @@ export interface ChannelMember {
 // ── Messages ───────────────────────────────────────────────────────
 export type MessageType = 'text' | 'shipment' | 'ai' | 'system';
 
+export interface AttachmentMetadata {
+  url: string;
+  name: string;
+  type: string;
+  size: number;
+}
+
 export interface Message {
   id: string;
   content: string;
@@ -52,7 +59,11 @@ export interface Message {
   parent_id: string | null;
   reply_count?: number;
   message_type: MessageType;
-  metadata: Record<string, unknown>;
+  metadata: {
+    attachment?: AttachmentMetadata;
+    shipment?: any;
+    [key: string]: any;
+  };
   is_edited: boolean;
   created_at: string;
   updated_at: string;

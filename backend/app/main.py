@@ -1,11 +1,17 @@
 from contextlib import asynccontextmanager
+import os
 
 from fastapi import FastAPI
 from fastapi.middleware.cors import CORSMiddleware
+from fastapi.staticfiles import StaticFiles
 
 from app.redis_client import close_redis, get_redis
 from app.routers import auth, channels, messages, dms, shipments, presence, ai
 from app.websocket.manager import websocket_router
+
+
+# Ensure static uploads directory exists before mounting
+os.makedirs("uploads", exist_ok=True)
 
 
 @asynccontextmanager
@@ -23,6 +29,8 @@ app = FastAPI(
     description="Real-time logistics collaboration platform",
     lifespan=lifespan,
 )
+
+app.mount("/static/uploads", StaticFiles(directory="uploads"), name="uploads")
 
 app.add_middleware(
     CORSMiddleware,
