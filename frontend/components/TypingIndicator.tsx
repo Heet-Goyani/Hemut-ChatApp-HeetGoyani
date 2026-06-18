@@ -10,7 +10,7 @@ export default function TypingIndicator({ typingUsers, userNames = {} }: TypingI
     return <div className="typing-indicator" />;
   }
 
-  const names = [...typingUsers].map((id) => userNames[id] ?? 'Someone');
+  const names = Array.from(typingUsers).map((id) => userNames[id] ?? 'Someone');
 
   let label: string;
   if (names.length === 1) {

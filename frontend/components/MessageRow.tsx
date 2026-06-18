@@ -64,6 +64,7 @@ interface MessageRowProps {
   showDate?: boolean;
   onDeleted?: (id: string) => void;
   onEdited?: (msg: Message) => void;
+  onReplyInThread?: (msg: Message) => void;
 }
 
 export default function MessageRow({
@@ -72,6 +73,7 @@ export default function MessageRow({
   showDate,
   onDeleted,
   onEdited,
+  onReplyInThread,
 }: MessageRowProps) {
   const router = useRouter();
   const currentUserId = getUserId();
@@ -214,27 +216,64 @@ export default function MessageRow({
               {renderContent(message.content)}
             </div>
           )}
+
+          {/* Thread replies link */}
+          {onReplyInThread && message.reply_count !== undefined && message.reply_count > 0 ? (
+            <button
+              onClick={() => onReplyInThread(message)}
+              style={{
+                background: 'transparent',
+                border: 'none',
+                color: 'var(--brand-400)',
+                fontSize: '0.75rem',
+                fontWeight: 600,
+                marginTop: 'var(--space-2)',
+                display: 'flex',
+                alignItems: 'center',
+                gap: 'var(--space-1)',
+                cursor: 'pointer',
+                padding: 0,
+              }}
+              title="View thread replies"
+            >
+              💬 {message.reply_count} {message.reply_count === 1 ? 'reply' : 'replies'}
+            </button>
+          ) : null}
         </div>
 
-        {/* Actions (own messages only) */}
-        {isOwn && hovered && !editing && (
+        {/* Actions */}
+        {hovered && !editing && (
           <div style={{ display: 'flex', gap: 'var(--space-1)', flexShrink: 0 }}>
-            <button
-              className="btn btn-ghost btn-sm"
-              style={{ padding: '4px 8px' }}
-              onClick={() => { setEditing(true); setEditValue(message.content); }}
-              title="Edit message"
-            >
-              ✏️
-            </button>
-            <button
-              className="btn btn-ghost btn-sm"
-              style={{ padding: '4px 8px', color: 'var(--error)' }}
-              onClick={handleDelete}
-              title="Delete message"
-            >
-              🗑️
-            </button>
+            {onReplyInThread && (
+              <button
+                className="btn btn-ghost btn-sm"
+                style={{ padding: '4px 8px' }}
+                onClick={() => onReplyInThread(message)}
+                title="Reply in thread"
+              >
+                💬
+              </button>
+            )}
+            {isOwn && (
+              <>
+                <button
+                  className="btn btn-ghost btn-sm"
+                  style={{ padding: '4px 8px' }}
+                  onClick={() => { setEditing(true); setEditValue(message.content); }}
+                  title="Edit message"
+                >
+                  ✏️
+                </button>
+                <button
+                  className="btn btn-ghost btn-sm"
+                  style={{ padding: '4px 8px', color: 'var(--error)' }}
+                  onClick={handleDelete}
+                  title="Delete message"
+                >
+                  🗑️
+                </button>
+              </>
+            )}
           </div>
         )}
       </div>

@@ -8,6 +8,7 @@ class MessageCreate(BaseModel):
     content: str
     message_type: str = "text"
     metadata: dict = {}
+    parent_id: uuid.UUID | None = None
 
 
 class MessageUpdate(BaseModel):
@@ -21,6 +22,7 @@ class MessageOut(BaseModel):
     channel_id: uuid.UUID | None
     recipient_id: uuid.UUID | None
     parent_id: uuid.UUID | None
+    reply_count: int = 0
     message_type: str
     metadata: dict = Field(default={}, alias="metadata_")
     is_edited: bool

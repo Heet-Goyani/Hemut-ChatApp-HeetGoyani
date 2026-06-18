@@ -105,6 +105,18 @@ export function useMessages({ channelId, dmUserId }: UseMessagesOptions) {
 
     if (!isMyChannel && !isMyDM) return;
 
+    if (e.message.parent_id) {
+      // Reply message: increment parent's reply_count in main list
+      setMessages((prev) =>
+        prev.map((m) =>
+          m.id === e.message.parent_id
+            ? { ...m, reply_count: (m.reply_count ?? 0) + 1 }
+            : m
+        )
+      );
+      return;
+    }
+
     setMessages((prev) => {
       if (prev.find((m) => m.id === e.message.id)) return prev;
       return [...prev, e.message];
@@ -140,6 +152,18 @@ export function useMessages({ channelId, dmUserId }: UseMessagesOptions) {
       e.is_dm;
 
     if (!isMyChannel && !isMyDM) return;
+
+    if (e.parent_id) {
+      // Reply deleted: decrement parent's reply_count in main list
+      setMessages((prev) =>
+        prev.map((m) =>
+          m.id === e.parent_id
+            ? { ...m, reply_count: Math.max(0, (m.reply_count ?? 0) - 1) }
+            : m
+        )
+      );
+      return;
+    }
 
     setMessages((prev) => prev.filter((m) => m.id !== e.message_id));
   });

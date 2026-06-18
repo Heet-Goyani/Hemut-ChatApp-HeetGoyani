@@ -53,8 +53,8 @@ async def on_channel_message_edited(channel_id: uuid.UUID, msg) -> None:
     await notify_message_edited(str(channel_id), _serialize_msg(msg))
 
 
-async def on_channel_message_deleted(channel_id: uuid.UUID, message_id: uuid.UUID) -> None:
-    await notify_message_deleted(str(channel_id), str(message_id))
+async def on_channel_message_deleted(channel_id: uuid.UUID, message_id: uuid.UUID, parent_id: uuid.UUID | None = None) -> None:
+    await notify_message_deleted(str(channel_id), str(message_id), str(parent_id) if parent_id else None)
 
 
 async def on_dm_created(recipient_user_id: uuid.UUID, msg) -> None:
@@ -67,9 +67,9 @@ async def on_dm_edited(recipient_user_id: uuid.UUID, msg) -> None:
     await notify_dm_edited(str(recipient_user_id), _serialize_msg(msg))
 
 
-async def on_dm_deleted(recipient_user_id: uuid.UUID, message_id: uuid.UUID) -> None:
+async def on_dm_deleted(recipient_user_id: uuid.UUID, message_id: uuid.UUID, parent_id: uuid.UUID | None = None) -> None:
     """Called after a DM is deleted — pushes delete to recipient's personal topic."""
-    await notify_dm_deleted(str(recipient_user_id), str(message_id))
+    await notify_dm_deleted(str(recipient_user_id), str(message_id), str(parent_id) if parent_id else None)
 
 
 async def on_ai_summary_complete(user_id: uuid.UUID, channel_id: uuid.UUID, summary: dict) -> None:

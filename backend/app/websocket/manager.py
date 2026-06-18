@@ -303,11 +303,12 @@ async def notify_message_edited(channel_id: str, message_data: dict) -> None:
     })
 
 
-async def notify_message_deleted(channel_id: str, message_id: str) -> None:
+async def notify_message_deleted(channel_id: str, message_id: str, parent_id: str | None = None) -> None:
     await broadcast_to_channel(channel_id, {
         "type": "message_deleted",
         "channel_id": channel_id,
         "message_id": message_id,
+        "parent_id": parent_id,
     })
 
 
@@ -331,13 +332,14 @@ async def notify_dm_edited(recipient_user_id: str, message_data: dict) -> None:
     }))
 
 
-async def notify_dm_deleted(recipient_user_id: str, message_id: str) -> None:
+async def notify_dm_deleted(recipient_user_id: str, message_id: str, parent_id: str | None = None) -> None:
     """Push DM delete directly to recipient's personal Redis topic."""
     redis = await get_redis()
     await redis.publish(f"user:{recipient_user_id}", json.dumps({
         "type": "message_deleted",
         "is_dm": True,
         "message_id": message_id,
+        "parent_id": parent_id,
     }))
 
 

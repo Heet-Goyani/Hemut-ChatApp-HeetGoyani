@@ -9,7 +9,8 @@ import MessageRow from '@/components/MessageRow';
 import MessageInput from '@/components/MessageInput';
 import TypingIndicator from '@/components/TypingIndicator';
 import AISummaryPanel from '@/components/AISummaryPanel';
-import type { Channel, ChannelMember, AISummary, WSAIResponseEvent } from '@/types';
+import ThreadDrawer from '@/components/ThreadDrawer';
+import type { Channel, ChannelMember, AISummary, WSAIResponseEvent, Message } from '@/types';
 
 interface PageProps {
   params: { channelId: string };
@@ -25,6 +26,7 @@ export default function ChannelPage({ params }: PageProps) {
   const [searchQuery, setSearchQuery] = useState('');
   const [searchResults, setSearchResults] = useState<Message[]>([]);
   const [searching, setSearching] = useState(false);
+  const [activeThread, setActiveThread] = useState<Message | null>(null);
   const bottomRef = useRef<HTMLDivElement>(null);
 
   const { messages, hasMore, loading, typingUsers, loadMore, addMessage, removeMessage, updateMessage } =
@@ -43,6 +45,7 @@ export default function ChannelPage({ params }: PageProps) {
     setSearchQuery('');
     setSearching(false);
     setSearchResults([]);
+    setActiveThread(null);
   }, [channelId]);
 
   // Auto-scroll to bottom on new messages
@@ -93,147 +96,167 @@ export default function ChannelPage({ params }: PageProps) {
   const prevDateRef = useRef<string>('');
 
   return (
-    <>
-      {/* Channel header */}
-      <div className="channel-header">
-        <span style={{ fontSize: '1.1rem', color: 'var(--text-muted)' }}>#</span>
-        <div className="channel-header-title">
-          <span>{channel?.name ?? channelId}</span>
-          {channel?.description && (
-            <span style={{ fontWeight: 400, fontSize: '0.875rem', color: 'var(--text-muted)' }}>
-              — {channel.description}
-            </span>
-          )}
-        </div>
-
-        <div className="channel-header-actions">
-          {/* 🔍 Search Input */}
-          <div style={{ position: 'relative', display: 'flex', alignItems: 'center' }}>
-            <input
-              type="text"
-              className="input"
-              style={{
-                width: '180px',
-                padding: 'var(--space-1) 24px var(--space-1) var(--space-3)',
-                fontSize: '0.8125rem',
-                height: '32px',
-                marginRight: 'var(--space-2)'
-              }}
-              placeholder="Search in channel…"
-              value={searchQuery}
-              onChange={(e) => handleSearch(e.target.value)}
-            />
-            {searchQuery && (
-              <button
-                onClick={() => handleSearch('')}
-                style={{
-                  position: 'absolute',
-                  right: '16px',
-                  background: 'transparent',
-                  border: 'none',
-                  color: 'var(--text-muted)',
-                  cursor: 'pointer',
-                  fontSize: '0.875rem'
-                }}
-              >
-                ✕
-              </button>
+    <div style={{ display: 'flex', flex: 1, height: '100%', overflow: 'hidden', width: '100%' }}>
+      <div style={{
+        display: 'flex',
+        flexDirection: 'column',
+        flex: 1,
+        height: '100%',
+        overflow: 'hidden',
+        borderRight: activeThread ? '1px solid var(--border-subtle)' : 'none'
+      }}>
+        {/* Channel header */}
+        <div className="channel-header">
+          <span style={{ fontSize: '1.1rem', color: 'var(--text-muted)' }}>#</span>
+          <div className="channel-header-title">
+            <span>{channel?.name ?? channelId}</span>
+            {channel?.description && (
+              <span style={{ fontWeight: 400, fontSize: '0.875rem', color: 'var(--text-muted)' }}>
+                — {channel.description}
+              </span>
             )}
           </div>
 
-          {/* Member count */}
-          <span style={{ fontSize: '0.8125rem', color: 'var(--text-muted)' }}>
-            {channel?.member_count ?? 0} members
-          </span>
+          <div className="channel-header-actions">
+            {/* 🔍 Search Input */}
+            <div style={{ position: 'relative', display: 'flex', alignItems: 'center' }}>
+              <input
+                type="text"
+                className="input"
+                style={{
+                  width: '180px',
+                  padding: 'var(--space-1) 24px var(--space-1) var(--space-3)',
+                  fontSize: '0.8125rem',
+                  height: '32px',
+                  marginRight: 'var(--space-2)'
+                }}
+                placeholder="Search in channel…"
+                value={searchQuery}
+                onChange={(e) => handleSearch(e.target.value)}
+              />
+              {searchQuery && (
+                <button
+                  onClick={() => handleSearch('')}
+                  style={{
+                    position: 'absolute',
+                    right: '16px',
+                    background: 'transparent',
+                    border: 'none',
+                    color: 'var(--text-muted)',
+                    cursor: 'pointer',
+                    fontSize: '0.875rem'
+                  }}
+                >
+                  ✕
+                </button>
+              )}
+            </div>
 
-          {/* ✨ Catch me up */}
-          <button
-            id="btn-catch-me-up"
-            className="btn btn-ghost btn-sm"
-            onClick={handleCatchMeUp}
-            disabled={aiLoading}
-            title="AI: Catch me up on the last 24 hours"
-            style={{
-              background: 'hsla(222, 78%, 52%, 0.1)',
-              color: 'var(--brand-400)',
-              border: '1px solid hsla(222, 78%, 52%, 0.2)',
-            }}
-          >
-            {aiLoading ? <span className="spinner" style={{ width: 14, height: 14 }} /> : '✨'}
-            Catch me up
-          </button>
-        </div>
-      </div>
+            {/* Member count */}
+            <span style={{ fontSize: '0.8125rem', color: 'var(--text-muted)' }}>
+              {channel?.member_count ?? 0} members
+            </span>
 
-      {/* AI Summary panel */}
-      {showAI && (
-        <AISummaryPanel
-          summary={aiSummary}
-          loading={aiLoading}
-          onClose={() => { setShowAI(false); setAiSummary(null); }}
-        />
-      )}
-
-      {/* Messages */}
-      <div className="messages-container">
-        {/* Load more */}
-        {hasMore && (
-          <div style={{ textAlign: 'center', paddingBottom: 'var(--space-4)' }}>
+            {/* ✨ Catch me up */}
             <button
+              id="btn-catch-me-up"
               className="btn btn-ghost btn-sm"
-              onClick={loadMore}
-              disabled={loading}
+              onClick={handleCatchMeUp}
+              disabled={aiLoading}
+              title="AI: Catch me up on the last 24 hours"
+              style={{
+                background: 'hsla(222, 78%, 52%, 0.1)',
+                color: 'var(--brand-400)',
+                border: '1px solid hsla(222, 78%, 52%, 0.2)',
+              }}
             >
-              {loading ? <span className="spinner" style={{ width: 14, height: 14 }} /> : 'Load older messages'}
+              {aiLoading ? <span className="spinner" style={{ width: 14, height: 14 }} /> : '✨'}
+              Catch me up
             </button>
           </div>
+        </div>
+
+        {/* AI Summary panel */}
+        {showAI && (
+          <AISummaryPanel
+            summary={aiSummary}
+            loading={aiLoading}
+            onClose={() => { setShowAI(false); setAiSummary(null); }}
+          />
         )}
 
-        {/* Message list */}
-        {(searching ? searchResults : messages).map((msg, idx) => {
-          const prevMsg = (searching ? searchResults : messages)[idx - 1];
-          const currDay = new Date(msg.created_at).toDateString();
-          const prevDay = prevMsg ? new Date(prevMsg.created_at).toDateString() : '';
-          const showDate = currDay !== prevDay;
+        {/* Messages */}
+        <div className="messages-container">
+          {/* Load more */}
+          {hasMore && (
+            <div style={{ textAlign: 'center', paddingBottom: 'var(--space-4)' }}>
+              <button
+                className="btn btn-ghost btn-sm"
+                onClick={loadMore}
+                disabled={loading}
+              >
+                {loading ? <span className="spinner" style={{ width: 14, height: 14 }} /> : 'Load older messages'}
+              </button>
+            </div>
+          )}
 
-          return (
-            <MessageRow
-              key={msg.id}
-              message={msg}
-              presence={msg.sender_id ? getPresence(msg.sender_id) : 'offline'}
-              showDate={showDate}
-              onDeleted={searching ? undefined : removeMessage}
-              onEdited={searching ? undefined : updateMessage}
-            />
-          );
-        })}
+          {/* Message list */}
+          {(searching ? searchResults : messages).map((msg, idx) => {
+            const prevMsg = (searching ? searchResults : messages)[idx - 1];
+            const currDay = new Date(msg.created_at).toDateString();
+            const prevDay = prevMsg ? new Date(prevMsg.created_at).toDateString() : '';
+            const showDate = currDay !== prevDay;
 
-        {searching && searchResults.length === 0 && (
-          <div style={{ textAlign: 'center', color: 'var(--text-muted)', padding: 'var(--space-12) 0' }}>
-            <p style={{ fontSize: '1rem', marginBottom: 'var(--space-2)' }}>No matching messages</p>
-            <p style={{ fontSize: '0.875rem' }}>No messages in #{channel?.name} contain "{searchQuery}"</p>
-          </div>
-        )}
+            return (
+              <MessageRow
+                key={msg.id}
+                message={msg}
+                presence={msg.sender_id ? getPresence(msg.sender_id) : 'offline'}
+                showDate={showDate}
+                onDeleted={searching ? undefined : removeMessage}
+                onEdited={searching ? undefined : updateMessage}
+                onReplyInThread={setActiveThread}
+              />
+            );
+          })}
 
-        {messages.length === 0 && !loading && (
-          <div style={{ textAlign: 'center', color: 'var(--text-muted)', padding: 'var(--space-12) 0' }}>
-            <p style={{ fontSize: '1rem', marginBottom: 'var(--space-2)' }}>No messages yet</p>
-            <p style={{ fontSize: '0.875rem' }}>Be the first to say something in #{channel?.name}!</p>
-          </div>
-        )}
+          {searching && searchResults.length === 0 && (
+            <div style={{ textAlign: 'center', color: 'var(--text-muted)', padding: 'var(--space-12) 0' }}>
+              <p style={{ fontSize: '1rem', marginBottom: 'var(--space-2)' }}>No matching messages</p>
+              <p style={{ fontSize: '0.875rem' }}>No messages in #{channel?.name} contain "{searchQuery}"</p>
+            </div>
+          )}
 
-        <div ref={bottomRef} />
+          {messages.length === 0 && !loading && (
+            <div style={{ textAlign: 'center', color: 'var(--text-muted)', padding: 'var(--space-12) 0' }}>
+              <p style={{ fontSize: '1rem', marginBottom: 'var(--space-2)' }}>No messages yet</p>
+              <p style={{ fontSize: '0.875rem' }}>Be the first to say something in #{channel?.name}!</p>
+            </div>
+          )}
+
+          <div ref={bottomRef} />
+        </div>
+
+        {/* Typing indicator */}
+        <TypingIndicator typingUsers={typingUsers} userNames={memberNames} />
+
+        {/* Message input */}
+        <MessageInput
+          channelId={channelId}
+          placeholder={`Message #${channel?.name ?? '...'}`}
+          onSend={handleSend}
+        />
       </div>
 
-      {/* Typing indicator */}
-      <TypingIndicator typingUsers={typingUsers} userNames={memberNames} />
-
-      {/* Message input */}
-      <MessageInput
-        channelId={channelId}
-        placeholder={`Message #${channel?.name ?? '...'}`}
-        onSend={handleSend}
-      />
-    </>
+      {/* Thread Drawer */}
+      {activeThread && (
+        <ThreadDrawer
+          parentMessage={activeThread}
+          onClose={() => setActiveThread(null)}
+          channelId={channelId}
+          channelName={channel?.name}
+        />
+      )}
+    </div>
   );
 }

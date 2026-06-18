@@ -50,6 +50,7 @@ export interface Message {
   channel_id: string | null;
   recipient_id: string | null;
   parent_id: string | null;
+  reply_count?: number;
   message_type: MessageType;
   metadata: Record<string, unknown>;
   is_edited: boolean;
@@ -164,6 +165,7 @@ export interface WSMessageDeletedEvent extends WSEvent {
   channel_id?: string | null;
   is_dm?: boolean;
   message_id: string;
+  parent_id?: string | null;
 }
 
 export interface WSPresenceChangeEvent extends WSEvent {

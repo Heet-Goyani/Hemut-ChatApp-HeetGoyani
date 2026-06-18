@@ -144,13 +144,14 @@ export async function sendChannelMessage(
   channelId: string,
   content: string,
   message_type = 'text',
-  metadata: Record<string, unknown> = {}
+  metadata: Record<string, unknown> = {},
+  parentId?: string
 ): Promise<Message> {
   return apiFetch<Message>(
     `/api/messages/channel/${channelId}`,
     {
       method: 'POST',
-      body: JSON.stringify({ content, message_type, metadata }),
+      body: JSON.stringify({ content, message_type, metadata, parent_id: parentId }),
     },
     getToken() ?? undefined
   );
@@ -168,6 +169,22 @@ export async function deleteMessage(id: string): Promise<void> {
   return apiFetch<void>(
     `/api/messages/${id}`,
     { method: 'DELETE' },
+    getToken() ?? undefined
+  );
+}
+
+export async function fetchMessageReplies(messageId: string): Promise<Message[]> {
+  return apiFetch<Message[]>(
+    `/api/messages/${messageId}/replies`,
+    {},
+    getToken() ?? undefined
+  );
+}
+
+export async function fetchMessage(messageId: string): Promise<Message> {
+  return apiFetch<Message>(
+    `/api/messages/${messageId}`,
+    {},
     getToken() ?? undefined
   );
 }
@@ -196,10 +213,10 @@ export async function fetchDMHistory(
   );
 }
 
-export async function sendDM(userId: string, content: string): Promise<Message> {
+export async function sendDM(userId: string, content: string, parentId?: string): Promise<Message> {
   return apiFetch<Message>(
     `/api/dms/${userId}`,
-    { method: 'POST', body: JSON.stringify({ content, message_type: 'text' }) },
+    { method: 'POST', body: JSON.stringify({ content, message_type: 'text', parent_id: parentId }) },
     getToken() ?? undefined
   );
 }
@@ -264,6 +281,17 @@ export async function fetchAISummary(channelId: string): Promise<AISummaryRespon
     {},
     getToken() ?? undefined
   );
+}
+
+export async function searchMessages(query: string, channelId?: string, dmUserId?: string): Promise<Message[]> {
+  let url = `/api/messages/search?q=${encodeURIComponent(query)}`;
+  if (channelId) {
+    url += `&channel_id=${channelId}`;
+  }
+  if (dmUserId) {
+    url += `&dm_user_id=${dmUserId}`;
+  }
+  return apiFetch<Message[]>(url, {}, getToken() ?? undefined);
 }
 
 export { ApiError };
