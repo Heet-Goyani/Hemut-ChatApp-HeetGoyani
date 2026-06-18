@@ -224,7 +224,7 @@ async def answer_rag_question(
     )
     
     if not is_dummy:
-        url = f"https://generativelanguage.googleapis.com/v1beta/models/gemini-3.5-flash:generateContent?key={settings.GEMINI_API_KEY}"
+        url = f"https://generativelanguage.googleapis.com/v1beta/models/gemini-flash-lite-latest:generateContent?key={settings.GEMINI_API_KEY}"
         payload = {
             "contents": [
                 {
