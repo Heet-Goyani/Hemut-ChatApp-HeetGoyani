@@ -6,8 +6,9 @@ from fastapi.middleware.cors import CORSMiddleware
 from fastapi.staticfiles import StaticFiles
 
 from app.redis_client import close_redis, get_redis
-from app.routers import auth, channels, messages, dms, shipments, presence, ai
+from app.routers import auth, channels, messages, dms, shipments, presence, ai, rag
 from app.websocket.manager import websocket_router
+
 
 
 # Ensure static uploads directory exists before mounting
@@ -48,6 +49,8 @@ app.include_router(dms.router, prefix="/api/dms", tags=["dms"])
 app.include_router(shipments.router, prefix="/api/shipments", tags=["shipments"])
 app.include_router(presence.router, prefix="/api/presence", tags=["presence"])
 app.include_router(ai.router, prefix="/api/ai", tags=["ai"])
+app.include_router(rag.router, prefix="/api/rag", tags=["rag"])
+
 
 # WebSocket router
 app.include_router(websocket_router)

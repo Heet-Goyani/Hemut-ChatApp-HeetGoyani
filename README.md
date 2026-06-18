@@ -134,6 +134,35 @@ To improve user experience, we implemented a real-time suggestions dropdown that
    - **Click:** The user can click any item (captured via `onMouseDown` to bypass focus-blur triggers) to select it.
    - **Replacement:** The text area text is replaced with `/shipment [TRACKING_ID] `, and the text cursor is repositioned at the end of the text.
 
+
+---
+
+## 📁 AI Feature: Document Q&A (RAG)
+
+To enable operational teams to quickly query dealing files, confirmations, or layout PDFs without leaving their channel context, we implemented a complete RAG (Retrieval-Augmented Generation) pipeline:
+1. **Document Management:** Users can upload `.txt`, `.md`, or `.pdf` files up to 10MB inside the Document Q&A panel. These files are securely processed on the backend.
+2. **Text Chunking:** Extracted document text is split into 500-character overlapping chunks to preserve semantic integrity.
+3. **Embeddings & Vector Search:** Chunks are translated to 768-dimensional embeddings using Google's `gemini-embedding-001` model.
+4. **Resilient Vector Fallback:** Chunks and embeddings are stored in PostgreSQL (`rag_documents` and `rag_document_chunks` tables). If `pgvector` is not available in the database, the backend automatically falls back to storing vector arrays as standard `JSONB` rows and executes pure Python cosine similarity calculations, ensuring a seamless fallback deployment path.
+5. **Interactive Assistant:** A dedicated side panel allows users to chat with their documents. The pipeline retrieves the most relevant chunks, prompts `gemini-3.5-flash` with the context, and displays responses inline with source citations and similarity scores.
+
+---
+
+## 🚪 Channel Management: Leave Channel Button
+
+To give users full control over their channel memberships, we added a secure channel exit mechanism:
+1. **Header Entrypoint:** A clean `🚪 Leave Channel` button is added to the channel header, dynamically rendered only for channels in which the current user is active (`is_member === true`).
+2. **Double-Confirmation Modal:** Clicking the button triggers a glassmorphic confirmation modal asking: *"Are you sure you want to leave #{channelName}?"*, protecting users from accidental clicks.
+3. **Reactive State Sync:** On confirming, the client calls `DELETE /api/channels/{channel_id}/leave` on the backend (deleting the SQL membership record), emits a `CHANNEL_LEFT_EVENT` via the window event bus to refresh the sidebar channels list, and redirects the active viewport back to `/chat`.
+
+---
+
+## 🎨 Message Alignment & Bubble Correction
+
+To ensure clear readability and flow, we revamped the message bubble styling and layout:
+1. **Visual Distinction:** Current user messages are right-aligned (`flex-direction: row-reverse`) with avatars placed on the right. Metadata fields (sender name, timestamp) are aligned to the right, and the message text bubble is styled in a glassmorphic brand blue tint (`hsla(222, 78%, 52%, 0.15)`) with a custom bubble notch.
+2. **Received Messages:** Colleagues' messages remain left-aligned with a dark raised container backdrop (`var(--bg-raised)`).
+
 ---
 
 ## ⚖️ Thoughtful Tradeoffs

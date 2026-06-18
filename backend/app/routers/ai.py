@@ -57,6 +57,9 @@ async def _run_summarization(
             "alerts": [],
         })
     except Exception as e:
+        import traceback
+        print("EXCEPTION IN AI SUMMARIZATION:")
+        traceback.print_exc()
         user_friendly_msg = (
             "AI Summarization is temporarily unavailable due to high server load. "
             "Please try again in a few minutes, or contact heet@hemut.com if the issue persists."

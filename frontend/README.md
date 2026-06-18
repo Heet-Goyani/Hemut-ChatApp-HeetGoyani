@@ -41,6 +41,22 @@ Users can upload files up to 10MB in channels, direct messages, and thread reply
 * **Local Storing:** Integrated paperclip triggers route files to the backend for storage and serving.
 * **Dynamic Cards:** Rendered inline as animated images or downloadeable glassmorphic files card inside the chat stream ([`components/MessageRow.tsx`](file:///d:/Job%20Hunt/Assignments/Hemut/logichat/frontend/components/MessageRow.tsx)).
 
+### 6. Document Q&A Panel (RAG)
+Operates as a sliding side-panel drawer ([`components/RAGPanel.tsx`](file:///d:/Job%20Hunt/Assignments/Hemut/logichat/frontend/components/RAGPanel.tsx)) allowing users to upload text and PDF documents to chat with them.
+* **Document Uploader:** Supports drag-and-drop or file selection for documents up to 10MB, listing active files with instant delete actions.
+* **Conversational AI Feed:** Keeps a local session chat log, rendering AI markdown responses alongside detailed source text snippets and similarity scores.
+
+### 7. Header "Leave Channel" & Confirm Modal
+Provides an intuitive button in the channel header to exit joined channels:
+* **Interactive Button:** The `🚪 Leave Channel` button appears on active channel pages if the user is a membership holder.
+* **Double-Confirmation Modal:** Pops open a glassmorphic modal overlay confirming the action.
+* **Real-time Event Broadcast:** Upon exit, the page triggers the REST delete request, dispatches a custom event to notify the sidebar component to dynamically reload the channel list, and redirects the viewport to the root `/chat` route.
+
+### 8. Message Alignment & Bubble Correction
+Improved readability of personal vs. peer messages in the chat feed ([`components/MessageRow.tsx`](file:///d:/Job%20Hunt/Assignments/Hemut/logichat/frontend/components/MessageRow.tsx)):
+* **Alignment Layout:** Sent messages (`is_own === true`) are right-aligned with the avatar reversed. Sent metadata alignments adapt to the right side.
+* **Bubble Themes:** Sent bubbles render with a custom notch and a translucent brand blue color (`hsla(222, 78%, 52%, 0.15)`), while peer messages render with a dark raised container background.
+
 ---
 
 ## 📂 Directory Structure

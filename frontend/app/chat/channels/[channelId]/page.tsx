@@ -1,7 +1,8 @@
 'use client';
 
 import { useEffect, useRef, useState, useMemo } from 'react';
-import { fetchChannel, fetchChannelMembers, sendChannelMessage, triggerAISummary, searchMessages, markChannelAsRead } from '@/lib/api';
+import { useRouter } from 'next/navigation';
+import { fetchChannel, fetchChannelMembers, sendChannelMessage, triggerAISummary, searchMessages, markChannelAsRead, leaveChannel } from '@/lib/api';
 import { useMessages } from '@/hooks/useMessages';
 import { usePresence } from '@/hooks/usePresence';
 import { useSingleWSEvent } from '@/hooks/useWebSocket';
@@ -10,6 +11,8 @@ import MessageInput from '@/components/MessageInput';
 import TypingIndicator from '@/components/TypingIndicator';
 import AISummaryPanel from '@/components/AISummaryPanel';
 import ThreadDrawer from '@/components/ThreadDrawer';
+import RAGPanel from '@/components/RAGPanel';
+import { emitChannelLeft } from '@/lib/events';
 import type { Channel, ChannelMember, AISummary, WSAIResponseEvent, Message } from '@/types';
 
 interface PageProps {
@@ -18,6 +21,7 @@ interface PageProps {
 
 export default function ChannelPage({ params }: PageProps) {
   const { channelId } = params;
+  const router = useRouter();
   const [channel, setChannel] = useState<Channel | null>(null);
   const [members, setMembers] = useState<ChannelMember[]>([]);
   const [showAI, setShowAI] = useState(false);
@@ -29,6 +33,8 @@ export default function ChannelPage({ params }: PageProps) {
   const [searchResults, setSearchResults] = useState<Message[]>([]);
   const [searching, setSearching] = useState(false);
   const [activeThread, setActiveThread] = useState<Message | null>(null);
+  const [showRAG, setShowRAG] = useState(false);
+  const [showLeaveConfirm, setShowLeaveConfirm] = useState(false);
   const bottomRef = useRef<HTMLDivElement>(null);
 
   const { messages, hasMore, loading, typingUsers, loadMore, addMessage, removeMessage, updateMessage } =
@@ -59,6 +65,7 @@ export default function ChannelPage({ params }: PageProps) {
     setSearching(false);
     setSearchResults([]);
     setActiveThread(null);
+    setShowRAG(false);
   }, [channelId]);
 
   // Calculate unread count since lastReadAt
@@ -91,6 +98,19 @@ export default function ChannelPage({ params }: PageProps) {
     setShowAI(true);
     setAiLoading(false);
     setAiSummary(null);
+    setShowRAG(false);
+  };
+
+  const handleLeaveChannel = async () => {
+    try {
+      await leaveChannel(channelId);
+      emitChannelLeft(channelId);
+      router.push('/chat');
+    } catch (err) {
+      console.error('Failed to leave channel:', err);
+    } finally {
+      setShowLeaveConfirm(false);
+    }
   };
 
   const handleTriggerSummary = async (type: 'unread' | 'hours', hoursValue?: number) => {
@@ -137,7 +157,7 @@ export default function ChannelPage({ params }: PageProps) {
         flex: 1,
         height: '100%',
         overflow: 'hidden',
-        borderRight: activeThread ? '1px solid var(--border-subtle)' : 'none'
+        borderRight: (activeThread || showRAG) ? '1px solid var(--border-subtle)' : 'none'
       }}>
         {/* Channel header */}
         <div className="channel-header">
@@ -187,9 +207,47 @@ export default function ChannelPage({ params }: PageProps) {
             </div>
 
             {/* Member count */}
-            <span style={{ fontSize: '0.8125rem', color: 'var(--text-muted)' }}>
+            <span style={{ fontSize: '0.8125rem', color: 'var(--text-muted)', marginRight: 'var(--space-2)' }}>
               {channel?.member_count ?? 0} members
             </span>
+
+            {/* 🚪 Leave Channel */}
+            {channel?.is_member && (
+              <button
+                id="btn-leave-channel"
+                className="btn btn-ghost btn-sm"
+                onClick={() => setShowLeaveConfirm(true)}
+                style={{
+                  background: 'hsla(354, 70%, 54%, 0.1)',
+                  color: 'var(--error)',
+                  border: '1px solid hsla(354, 70%, 54%, 0.2)',
+                  marginRight: 'var(--space-2)'
+                }}
+                title="Leave this channel"
+              >
+                🚪 Leave Channel
+              </button>
+            )}
+
+            {/* 📁 Document Q&A */}
+            <button
+              id="btn-document-qa"
+              className="btn btn-ghost btn-sm"
+              onClick={() => {
+                setShowRAG(!showRAG);
+                setActiveThread(null);
+                setShowAI(false);
+              }}
+              style={{
+                background: showRAG ? 'hsla(222, 78%, 52%, 0.15)' : 'hsla(222, 78%, 52%, 0.08)',
+                color: 'var(--brand-400)',
+                border: '1px solid hsla(222, 78%, 52%, 0.2)',
+                marginRight: 'var(--space-2)'
+              }}
+              title="Upload documents and ask questions"
+            >
+              📁 Document Q&A
+            </button>
 
             {/* ✨ Catch me up */}
             <button
@@ -252,7 +310,11 @@ export default function ChannelPage({ params }: PageProps) {
                 showDate={showDate}
                 onDeleted={searching ? undefined : removeMessage}
                 onEdited={searching ? undefined : updateMessage}
-                onReplyInThread={setActiveThread}
+                onReplyInThread={(m) => {
+                  setActiveThread(m);
+                  setShowRAG(false);
+                  setShowAI(false);
+                }}
               />
             );
           })}
@@ -293,6 +355,54 @@ export default function ChannelPage({ params }: PageProps) {
           channelId={channelId}
           channelName={channel?.name}
         />
+      )}
+
+      {/* RAG Drawer */}
+      {showRAG && (
+        <RAGPanel
+          channelId={channelId}
+          channelName={channel?.name}
+          onClose={() => setShowRAG(false)}
+        />
+      )}
+
+      {/* Leave Confirmation Modal */}
+      {showLeaveConfirm && (
+        <div className="dm-modal-overlay" onClick={() => setShowLeaveConfirm(false)}>
+          <div className="dm-modal-container" onClick={(e) => e.stopPropagation()}>
+            <div className="dm-modal-header">
+              <span className="dm-modal-title">Leave Channel</span>
+              <button className="dm-modal-close" onClick={() => setShowLeaveConfirm(false)}>
+                ✕
+              </button>
+            </div>
+            <div className="dm-modal-body" style={{ gap: 'var(--space-4)', padding: 'var(--space-6)' }}>
+              <p style={{ color: 'var(--text-secondary)', fontSize: '0.9375rem', lineHeight: '1.5' }}>
+                Are you sure you want to leave <strong>#{channel?.name}</strong>? You will no longer receive updates from this channel.
+              </p>
+              <div style={{ display: 'flex', justifyContent: 'flex-end', gap: 'var(--space-3)', marginTop: 'var(--space-2)' }}>
+                <button
+                  className="btn btn-ghost"
+                  onClick={() => setShowLeaveConfirm(false)}
+                >
+                  Cancel
+                </button>
+                <button
+                  id="btn-confirm-leave"
+                  className="btn"
+                  style={{
+                    background: 'var(--error)',
+                    color: 'white',
+                    border: 'none',
+                  }}
+                  onClick={handleLeaveChannel}
+                >
+                  Leave Channel
+                </button>
+              </div>
+            </div>
+          </div>
+        </div>
       )}
     </div>
   );

@@ -349,4 +349,70 @@ export async function searchMessages(query: string, channelId?: string, dmUserId
   return apiFetch<Message[]>(url, {}, getToken() ?? undefined);
 }
 
+// ── RAG ───────────────────────────────────────────────────────────
+
+export interface RAGDocument {
+  id: string;
+  filename: string;
+  file_size: number;
+  created_at: string;
+}
+
+export interface RAGChatResponse {
+  answer: string;
+  sources: Array<{ filename: string; chunk_index: number; score: number }>;
+}
+
+export async function uploadRAGDocument(
+  channelId: string,
+  file: File
+): Promise<RAGDocument> {
+  const formData = new FormData();
+  formData.append('channel_id', channelId);
+  formData.append('file', file);
+
+  const token = getToken();
+  const headers: Record<string, string> = {};
+  if (token) {
+    headers['Authorization'] = `Bearer ${token}`;
+  }
+
+  const res = await fetch(`${BASE_URL}/api/rag/upload`, {
+    method: 'POST',
+    headers,
+    body: formData,
+  });
+
+  if (!res.ok) {
+    let detail = `HTTP ${res.status}`;
+    try {
+      const body = await res.json();
+      detail = body?.detail ?? detail;
+    } catch { /* ignore */ }
+    throw new ApiError(res.status, detail);
+  }
+
+  return res.json();
+}
+
+export async function fetchRAGDocuments(channelId: string): Promise<RAGDocument[]> {
+  return apiFetch<RAGDocument[]>(`/api/rag/documents/${channelId}`, {}, getToken() ?? undefined);
+}
+
+export async function deleteRAGDocument(documentId: string): Promise<void> {
+  return apiFetch<void>(`/api/rag/documents/${documentId}`, { method: 'DELETE' }, getToken() ?? undefined);
+}
+
+export async function chatWithRAG(channelId: string, question: string): Promise<RAGChatResponse> {
+  return apiFetch<RAGChatResponse>(
+    `/api/rag/chat`,
+    {
+      method: 'POST',
+      body: JSON.stringify({ channel_id: channelId, question }),
+    },
+    getToken() ?? undefined
+  );
+}
+
 export { ApiError };
+

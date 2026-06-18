@@ -149,7 +149,7 @@ export default function MessageRow({
           </div>
 
           {editing ? (
-            <div style={{ display: 'flex', gap: 'var(--space-2)', marginTop: 'var(--space-2)' }}>
+            <div style={{ display: 'flex', gap: 'var(--space-2)', marginTop: 'var(--space-2)', width: '100%' }}>
               <input
                 className="input"
                 style={{ flex: 1 }}
@@ -181,7 +181,7 @@ export default function MessageRow({
               return (
                 <div style={{ display: 'flex', flexDirection: 'column', gap: 'var(--space-2)' }}>
                   {customText && (
-                    <div className="message-content">
+                    <div className="message-content is-text">
                       {renderContent(customText)}
                     </div>
                   )}
@@ -220,11 +220,11 @@ export default function MessageRow({
               );
             })()
           ) : message.message_type === 'system' ? (
-            <div className="message-content" style={{ color: 'var(--text-secondary)', fontStyle: 'italic' }}>
+            <div className="message-content is-system" style={{ color: 'var(--text-secondary)', fontStyle: 'italic' }}>
               {message.content}
             </div>
           ) : (
-            <div className="message-content">
+            <div className="message-content is-text">
               {renderContent(message.content)}
             </div>
           )}
