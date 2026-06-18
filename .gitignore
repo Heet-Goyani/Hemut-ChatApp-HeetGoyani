@@ -57,3 +57,7 @@ frontend/out/
 *.swp
 .gemini/
 .antigravity/
+
+# Temporary / Local Reference files
+backend/models.json
+
