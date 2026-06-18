@@ -448,9 +448,46 @@ code, pre {
 
 .message-row:hover { background: var(--bg-raised); }
 
-.message-row.is-own .message-bubble {
-  background: hsla(222, 78%, 52%, 0.1);
-  border-color: hsla(222, 78%, 52%, 0.15);
+/* Message bubbles layout */
+.message-row.is-own {
+  flex-direction: row-reverse;
+}
+
+.message-row.is-own .message-meta {
+  display: flex;
+  flex-direction: column;
+  align-items: flex-end;
+  text-align: right;
+}
+
+.message-row.is-own .message-header {
+  flex-direction: row-reverse;
+}
+
+.message-content.is-text {
+  background: var(--bg-raised);
+  border: 1px solid var(--border-subtle);
+  padding: var(--space-2) var(--space-3);
+  border-radius: var(--radius-lg);
+  border-top-left-radius: 2px;
+  display: inline-block;
+  max-width: 80%;
+  text-align: left;
+}
+
+.message-row.is-own .message-content.is-text {
+  background: hsla(222, 78%, 52%, 0.15);
+  border-color: hsla(222, 78%, 52%, 0.25);
+  border-radius: var(--radius-lg);
+  border-top-right-radius: 2px;
+  border-top-left-radius: var(--radius-lg);
+}
+
+.message-content.is-system {
+  display: block;
+  font-size: 0.9375rem;
+  color: var(--text-secondary);
+  font-style: italic;
 }
 
 .message-meta {
