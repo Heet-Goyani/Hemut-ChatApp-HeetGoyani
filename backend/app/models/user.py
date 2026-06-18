@@ -34,3 +34,6 @@ class User(Base):
     created_channels: Mapped[list["Channel"]] = relationship(  # noqa: F821
         "Channel", back_populates="creator"
     )
+    rag_documents: Mapped[list["RAGDocument"]] = relationship(  # noqa: F821
+        "RAGDocument", back_populates="user", cascade="all, delete-orphan"
+    )

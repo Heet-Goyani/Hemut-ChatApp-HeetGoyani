@@ -35,3 +35,6 @@ class Channel(Base):
     ai_summaries: Mapped[list["AISummary"]] = relationship(  # noqa: F821
         "AISummary", back_populates="channel"
     )
+    rag_documents: Mapped[list["RAGDocument"]] = relationship(  # noqa: F821
+        "RAGDocument", back_populates="channel", cascade="all, delete-orphan"
+    )
