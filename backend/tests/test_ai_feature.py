@@ -185,6 +185,58 @@ async def test_summarize_channel_fallback(client: AsyncClient, auth_headers: dic
 
 
 @pytest.mark.asyncio
+async def test_summarize_channel_gemini(client: AsyncClient, auth_headers: dict):
+    """
+    summarize_channel() calls the Google Gemini API when GEMINI_API_KEY is configured.
+    """
+    ch_resp = await client.post(
+        "/api/channels",
+        json={"name": "ai-gemini-channel"},
+        headers=auth_headers,
+    )
+    assert ch_resp.status_code == 201
+    channel_id = uuid.UUID(ch_resp.json()["id"])
+
+    await client.post(
+        f"/api/messages/channel/{channel_id}",
+        json={"content": "SHIP-2024-001 is delayed. The team is looking into it."},
+        headers=auth_headers,
+    )
+
+    # Set up mock response for Gemini API
+    mock_gemini_response = {
+        "candidates": [
+            {
+                "content": {
+                    "parts": [
+                        {
+                            "text": json.dumps(MOCK_AI_RESPONSE)
+                        }
+                    ]
+                }
+            }
+        ]
+    }
+
+    mock_post_res = MagicMock()
+    mock_post_res.json.return_value = mock_gemini_response
+    mock_post_res.raise_for_status = MagicMock()
+
+    # We mock the httpx post method
+    with patch("httpx.AsyncClient.post", new_callable=AsyncMock) as mock_post:
+        mock_post.return_value = mock_post_res
+        
+        with patch("app.services.ai_service.settings.GEMINI_API_KEY", "AIzaSyMockKeyForGeminiTest"):
+            from tests.conftest import TestAsyncSession
+            async with TestAsyncSession() as db:
+                result = await summarize_channel(db, channel_id, hours=24)
+
+    assert result["tldr"] == MOCK_AI_RESPONSE["tldr"]
+    assert result["key_topics"] == MOCK_AI_RESPONSE["key_topics"]
+    assert mock_post.called
+
+
+@pytest.mark.asyncio
 @patch("app.services.ai_service.client")
 async def test_summarize_caches_in_redis(mock_client, client: AsyncClient, auth_headers: dict):
     """After summarize_channel(), Redis should hold the cached result."""

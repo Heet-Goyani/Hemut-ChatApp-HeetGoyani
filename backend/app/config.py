@@ -10,6 +10,7 @@ class Settings(BaseSettings):
     ACCESS_TOKEN_EXPIRE_MINUTES: int = 60
     REFRESH_TOKEN_EXPIRE_DAYS: int = 7
     ANTHROPIC_API_KEY: str = ""
+    GEMINI_API_KEY: str = ""
     WEBHOOK_URL: str = ""
 
     class Config:

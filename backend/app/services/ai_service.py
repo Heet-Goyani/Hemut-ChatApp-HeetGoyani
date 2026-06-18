@@ -208,32 +208,66 @@ async def summarize_channel(
     conversation_text = _format_messages(messages)
     shipment_context = _format_shipments(shipments)
 
-    # 4. Call Claude API or Fallback Mock
-    if (not settings.ANTHROPIC_API_KEY 
-        or settings.ANTHROPIC_API_KEY.startswith("sk-ant-dummy") 
-        or settings.ANTHROPIC_API_KEY == "mock"):
+    # 4. Call Gemini, Claude, or Fallback Mock
+    if settings.GEMINI_API_KEY and not settings.GEMINI_API_KEY.startswith("dummy") and settings.GEMINI_API_KEY != "mock":
+        url = f"https://generativelanguage.googleapis.com/v1beta/models/gemini-1.5-flash:generateContent?key={settings.GEMINI_API_KEY}"
         
-        # Construct a realistic mock response dynamically based on channel logs
-        topics = ["General Operations"]
-        if tracking_ids:
-            topics.append(f"Shipment status updates ({', '.join(tracking_ids[:3])})")
+        prompt = (
+            f"{SYSTEM_PROMPT}\n\n"
+            f"Summarize the last {hours} hours of activity in this logistics channel.\n\n"
+            f"MESSAGES:\n{conversation_text}\n\n"
+            f"SHIPMENT DATA:\n{shipment_context}\n\n"
+            "Return only the JSON object, no other text."
+        )
         
-        shipment_status_list = []
-        for s in shipments:
-            shipment_status_list.append({
-                "tracking_id": s.tracking_id,
-                "status": s.status or "unknown",
-                "note": f"{s.carrier or 'Carrier'} transport from {s.origin or 'Origin'} to {s.destination or 'Destination'}."
-            })
-            
-        summary = _validate_summary({
-            "tldr": f"Mock Operational Summary: Analyzed {len(messages)} messages over the last {hours} hours. The team is coordinating active routes.",
-            "key_topics": topics,
-            "shipment_status": shipment_status_list,
-            "action_items": [f"Audit delayed containers matching tracking IDs" if tracking_ids else "Monitor channel updates"],
-            "alerts": ["Storm delays reported near Route West" if "storm" in conversation_text.lower() else "No active alerts."]
-        })
-    else:
+        payload = {
+            "contents": [
+                {
+                    "parts": [
+                        {
+                            "text": prompt
+                        }
+                    ]
+                }
+            ],
+            "generationConfig": {
+                "responseMimeType": "application/json",
+                "responseSchema": {
+                    "type": "OBJECT",
+                    "properties": {
+                        "tldr": {"type": "STRING"},
+                        "key_topics": {"type": "ARRAY", "items": {"type": "STRING"}},
+                        "shipment_status": {
+                          "type": "ARRAY",
+                          "items": {
+                            "type": "OBJECT",
+                            "properties": {
+                              "tracking_id": {"type": "STRING"},
+                              "status": {"type": "STRING"},
+                              "note": {"type": "STRING"}
+                            },
+                            "required": ["tracking_id", "status", "note"]
+                          }
+                        },
+                        "action_items": {"type": "ARRAY", "items": {"type": "STRING"}},
+                        "alerts": {"type": "ARRAY", "items": {"type": "STRING"}}
+                    },
+                    "required": ["tldr", "key_topics", "shipment_status", "action_items", "alerts"]
+                }
+            }
+        }
+        
+        import httpx
+        async with httpx.AsyncClient() as httpx_client:
+            res = await httpx_client.post(url, json=payload, timeout=30.0)
+            res.raise_for_status()
+            res_data = res.json()
+            raw_text = res_data["candidates"][0]["content"]["parts"][0]["text"].strip()
+            summary = _validate_summary(json.loads(raw_text))
+
+    elif (settings.ANTHROPIC_API_KEY 
+          and not settings.ANTHROPIC_API_KEY.startswith("sk-ant-dummy") 
+          and settings.ANTHROPIC_API_KEY != "mock"):
         response = client.messages.create(
             model="claude-3-5-sonnet-latest",
             max_tokens=1024,
@@ -258,6 +292,28 @@ async def summarize_channel(
             raw_text = re.sub(r"^```[a-z]*\n?", "", raw_text).rstrip("`").strip()
 
         summary = _validate_summary(json.loads(raw_text))
+
+    else:
+        # Construct a realistic mock response dynamically based on channel logs
+        topics = ["General Operations"]
+        if tracking_ids:
+            topics.append(f"Shipment status updates ({', '.join(tracking_ids[:3])})")
+        
+        shipment_status_list = []
+        for s in shipments:
+            shipment_status_list.append({
+                "tracking_id": s.tracking_id,
+                "status": s.status or "unknown",
+                "note": f"{s.carrier or 'Carrier'} transport from {s.origin or 'Origin'} to {s.destination or 'Destination'}."
+            })
+            
+        summary = _validate_summary({
+            "tldr": f"Mock Operational Summary: Analyzed {len(messages)} messages over the last {hours} hours. The team is coordinating active routes.",
+            "key_topics": topics,
+            "shipment_status": shipment_status_list,
+            "action_items": [f"Audit delayed containers matching tracking IDs" if tracking_ids else "Monitor channel updates"],
+            "alerts": ["Storm delays reported near Route West" if "storm" in conversation_text.lower() else "No active alerts."]
+        })
 
     # 6. Cache in Redis (1h TTL)
     await cache_summary(channel_id, summary)
