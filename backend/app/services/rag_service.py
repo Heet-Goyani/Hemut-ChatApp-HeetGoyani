@@ -70,7 +70,7 @@ async def generate_embedding(text: str) -> list[float]:
             vec.append(val)
         return vec
 
-    url = f"https://generativelanguage.googleapis.com/v1beta/models/text-embedding-004:embedContent?key={settings.GEMINI_API_KEY}"
+    url = f"https://generativelanguage.googleapis.com/v1beta/models/gemini-embedding-001:embedContent?key={settings.GEMINI_API_KEY}"
     payload = {
         "content": {
             "parts": [
