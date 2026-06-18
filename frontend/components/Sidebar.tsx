@@ -187,23 +187,13 @@ export default function Sidebar() {
     <>
       <aside className="sidebar">
         {/* Header */}
-        <div className="sidebar-header">
+        <div className="sidebar-header" style={{ justifyContent: 'space-between' }}>
           <div className="sidebar-logo">Hemut-Chat</div>
-          <div style={{ marginLeft: 'auto', display: 'flex', gap: 'var(--space-2)' }}>
-            <Link href="/chat/shipments" title="Shipments">
-              <button className="btn btn-ghost btn-sm" style={{ padding: '6px 8px' }}>
-                📦
-              </button>
-            </Link>
-            <button
-              id="btn-logout"
-              className="btn btn-ghost btn-sm"
-              onClick={handleLogout}
-              title="Sign out"
-            >
-              ⏏
+          <Link href="/chat/shipments" title="Shipments" style={{ textDecoration: 'none' }}>
+            <button className="btn btn-ghost btn-sm" style={{ padding: '6px 12px', display: 'flex', alignItems: 'center', gap: '6px', fontSize: '0.8125rem' }}>
+              📦 Shipments
             </button>
-          </div>
+          </Link>
         </div>
 
         {/* Scrollable content */}
@@ -297,12 +287,34 @@ export default function Sidebar() {
 
         {/* Profile Footer */}
         {me && (
-          <div className="sidebar-footer">
-            <Avatar name={me.display_name ?? me.username} src={me.avatar_url} size="sm" presence="online" />
-            <div className="sidebar-footer-info">
-              <span className="sidebar-footer-name truncate">{me.display_name ?? me.username}</span>
-              <span className="sidebar-footer-username truncate">@{me.username}</span>
+          <div className="sidebar-footer" style={{ justifyContent: 'space-between', gap: 'var(--space-2)' }}>
+            <div style={{ display: 'flex', alignItems: 'center', gap: 'var(--space-3)', minWidth: 0, flex: 1 }}>
+              <Avatar name={me.display_name ?? me.username} src={me.avatar_url} size="sm" presence="online" />
+              <div className="sidebar-footer-info">
+                <span className="sidebar-footer-name truncate">{me.display_name ?? me.username}</span>
+                <span className="sidebar-footer-username truncate">@{me.username}</span>
+              </div>
             </div>
+            <button
+              id="btn-logout"
+              className="btn btn-ghost btn-sm"
+              onClick={handleLogout}
+              style={{
+                padding: '4px var(--space-2)',
+                fontSize: '0.8125rem',
+                display: 'flex',
+                alignItems: 'center',
+                gap: '4px',
+                color: 'var(--error)',
+                border: '1px solid hsla(0, 72%, 56%, 0.15)',
+                background: 'hsla(0, 72%, 56%, 0.05)',
+                borderRadius: 'var(--radius-sm)',
+                whiteSpace: 'nowrap',
+              }}
+              title="Sign out"
+            >
+              🚪 Sign Out
+            </button>
           </div>
         )}
       </aside>
