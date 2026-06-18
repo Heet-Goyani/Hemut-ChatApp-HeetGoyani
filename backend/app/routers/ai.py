@@ -43,9 +43,9 @@ async def _run_summarization(
             summary = await ai_service.summarize_channel(db, channel_id, hours)
         await on_ai_summary_complete(requester_id, channel_id, summary)
     except json.JSONDecodeError as e:
-        # Claude returned malformed JSON — push an error event
+        # AI service returned malformed JSON — push an error event
         await on_ai_summary_complete(requester_id, channel_id, {
-            "error": "AI returned malformed response. Please try again.",
+            "error": "AI returned a malformed response. Please try again.",
             "tldr": "",
             "key_topics": [],
             "shipment_status": [],
@@ -53,8 +53,12 @@ async def _run_summarization(
             "alerts": [],
         })
     except Exception as e:
+        user_friendly_msg = (
+            "AI Summarization is temporarily unavailable due to high server load. "
+            "Please try again in a few minutes, or contact heet@hemut.com if the issue persists."
+        )
         await on_ai_summary_complete(requester_id, channel_id, {
-            "error": f"Summarization failed: {str(e)}",
+            "error": user_friendly_msg,
             "tldr": "",
             "key_topics": [],
             "shipment_status": [],
